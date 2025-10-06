@@ -1,0 +1,16 @@
+# Set default behavior for all files
+* text=auto
+
+# Use native line endings for text files
+*.java text
+*.xml text
+*.properties text
+*.md text
+
+# Force CRLF for Windows command scripts
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Force LF for shell scripts
+*.sh text eol=lf
+mvnw text eol=lf
