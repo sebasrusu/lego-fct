@@ -10,16 +10,15 @@ import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.CosmosDatabase;
-import com.azure.cosmos.models.CosmosItemRequestOptions;
-import com.azure.cosmos.models.CosmosPatchOperations;
-import com.azure.cosmos.models.CosmosQueryRequestOptions;
-import com.azure.cosmos.models.PartitionKey;
+import com.azure.cosmos.models.*;
 import com.azure.cosmos.util.CosmosPagedIterable;
 
+import java.util.List;
+
 public class CosmosDBLayer {
-	private static final String CONNECTION_URL = System.getProperty("db.connection.url");
+	private static final String CONNECTION_URL = System.getenv("DB_URL");
 	private static final String DB_KEY = System.getenv("DB_KEY");
-	private static final String DB_NAME = System.getProperty("db.name");
+	private static final String DB_NAME = System.getenv("DB_NAME");
 
 	private static CosmosDBLayer instance;
 
@@ -37,6 +36,11 @@ public class CosmosDBLayer {
 	public static synchronized CosmosDBLayer getInstance() {
 		if (instance != null)
 			return instance;
+
+		if (CONNECTION_URL == null || DB_KEY == null || DB_NAME == null) {
+			throw new IllegalStateException(
+					"Config em falta: DB_URL/DB_KEY/DB_NAME. Verifica App Settings ou flags -D.");
+		}
 
 		CosmosClient client = new CosmosClientBuilder().endpoint(CONNECTION_URL).key(DB_KEY)
 				.consistencyLevel(ConsistencyLevel.SESSION)
@@ -76,12 +80,26 @@ public class CosmosDBLayer {
 
 	public UserDAO updateUser(UserDAO user) {
 		init();
-		return users.replaceItem(user, user.getId(), new PartitionKey(user.getId()), new CosmosItemRequestOptions()).getItem();
+		return users.upsertItem(user, new PartitionKey(user.getId()), new CosmosItemRequestOptions()).getItem();
 	}
 
 	public void deleteUser(String id) {
 		init();
 		users.deleteItem(id, new PartitionKey(id), new CosmosItemRequestOptions());
+	}
+
+	public UserDAO findUserByNickname(String name) {
+		init();
+
+		String sql = "SELECT * FROM c WHERE c.nickname = @nickname";
+		List<SqlParameter> params = List.of(new SqlParameter("@nickname", name));
+
+		SqlQuerySpec spec = new SqlQuerySpec(sql, params);
+
+		CosmosPagedIterable<UserDAO> result =
+				users.queryItems(spec, new CosmosQueryRequestOptions(), UserDAO.class);
+
+		return result.iterator().hasNext() ? result.iterator().next() : null;
 	}
 
 	// --- LegoSet Methods ---

@@ -7,14 +7,15 @@
     <packaging>war</packaging>  
     <properties> 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>  
-        <authors>XXXXX-YYYYY-ZZZZZa</authors> 
-    </properties>  
-    <dependencies> 
+        <authors>XXXXX-YYYYY-ZZZZZ</authors>
+        <jedis.version>5.1.2</jedis.version>
+    </properties>
+    <dependencies>
         <dependency> 
             <groupId>jakarta.ws.rs</groupId>  
             <artifactId>jakarta.ws.rs-api</artifactId>  
-            <version>4.0.0</version> 
-        </dependency>  
+            <version>3.1.0</version>
+        </dependency>
         <dependency> 
             <groupId>com.fasterxml.jackson.core</groupId>  
             <artifactId>jackson-annotations</artifactId>  
@@ -39,7 +40,7 @@
             <groupId>org.jboss.resteasy</groupId>  
             <artifactId>resteasy-core</artifactId>  
             <version>6.2.12.Final</version> 
-        </dependency>  
+        </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>  
             <artifactId>resteasy-jaxb-provider</artifactId>  
@@ -86,11 +87,6 @@
             <version>2.25.1</version>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.20.0</version>
-        </dependency>
-        <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jackson2-provider</artifactId>
             <version>6.2.12.Final</version>
@@ -105,6 +101,11 @@
             <artifactId>lombok</artifactId>
             <version>1.18.32</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>${jedis.version}</version>
         </dependency>
     </dependencies>  
     <build> 
@@ -131,7 +132,7 @@
                 <version>2.14.1</version>
                 <configuration>
                     <pricingTier>F1</pricingTier>
-                    <region>uksouth</region>
+                    <region>spaincentral</region>
                     <runtime>
                         <os>linux</os>
                         <javaVersion>Java 21</javaVersion>
