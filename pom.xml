@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">  
     <modelVersion>4.0.0</modelVersion>  
     <groupId>pt.unl.fct.di.cc</groupId>  
-    <artifactId>lego-fct</artifactId>
+    <artifactId>cc2526</artifactId>
     <version>1.0</version>  
     <packaging>war</packaging>  
     <properties> 
@@ -132,7 +132,7 @@
                 <version>2.14.1</version>
                 <configuration>
                     <pricingTier>F1</pricingTier>
-                    <region>spaincentral</region>
+                    <region>italynorth</region>
                     <runtime>
                         <os>linux</os>
                         <javaVersion>Java 21</javaVersion>
@@ -148,8 +148,8 @@
                             </resource>
                         </resources>
                     </deployment>
-                    <resourceGroup>lego-rg-slr</resourceGroup>
-                    <appName>lego-slr</appName>
+                    <resourceGroup>cc2526</resourceGroup>
+                    <appName>cc2526</appName>
                 </configuration>
             </plugin> 
         </plugins> 
