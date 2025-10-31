@@ -1,0 +1,133 @@
+Cloud Computing– 2025/26
+Project 1
+1. Introduction
+The goal of this project is to understand how services available in cloud computing
+platforms can be used for creating applications that are scalable, fast, and highly available.
+The project will consist in the design and implementation of the backend for an application
+that manages collections of Legos and the companion testing scripts.
+The system will manage information about Lego sets. Users own a set of Lego sets. A User
+can create an auction to sell one of her Lego Sets.
+For implementing its features, the system must maintain, at least, the following
+information (you can add more information, as it seems appropriate for your system):
+• User: information about users, including the nickname, name, (hash of the)
+password, set of Lego Set owned, and a photo;
+• Media: images and videos used in the system;
+• LegoSet: information about a Lego set, including a name, a code number, a
+description, and at least one photo.
+• Comments: Users can add comments for LegoSet.
+• Auction: Users can create an auction for selling one of the Lego Set they own. An
+auction must refer to a Lego Set and the user that created the auction, and it should
+include the base price and the auction close date.
+The system must support, at least, the following basic operations using standard REST
+rules for defining endpoints:
+• User (/rest/user): create, update, delete, retrieve and list users. After a user is
+deleted, auctions and comments from the user appear as been performed by a
+default “Deleted User” user.
+• Media (/rest/media): upload media, download media.
+• LegoSet (/rest/legoset): create, update, delete, retrieve and list LegoSets.
+• Comment (/rest/legoset/{id}/comment): base URL for comments for a given
+LegoSet, supporting operations for creating and listing comments.
+• Auction (/rest/auction): create, list auctions. Bids on a given auction should be
+performed using a POST in URL (/rest/auction/{id}/bid)
+Operations that create an entity with an associated media object (e.g., users and LegoSets)
+can be implemented either by having clients executing two consecutive calls, the first for
+uploading the image and the second for the corresponding operation; or by executing a
+single operation that includes the media and the remaining data.
+1.1 Environment
+The project will be implemented in Azure, using the resources available to students under
+the Azure student program. Check the documentation in lab 1 for more information on how
+to claim the credits for your Azure account.
+NOTE: Azure services have associated costs. Be careful with the configuration of your
+services and the cost when you leave services/resources running, specially, those that are
+more expensive, such as Cosmos DB and Redis.
+2. Base version
+The base version consists of the basic version of the backend service, that includes the base
+REST endpoints associated with User, Media, LegoSet, Comment, Auction.
+You must decide how the service information is stored in the underlying storage
+services/database services, creating the necessary objects/documents.
+Besides the base endpoints associated with the previous resources, the service should
+provide the following endpoint:
+• List of LegoSets of a given user;
+• List of most recently added LegoSets;
+• Search of Auction for a given LegoSet.
+Additionally, optional features presented in section 4.4 will require additional endpoints.
+2.1 Services to use
+The system should use the following Azure services:
+• App service: for creating the REST servers (see lab 1 for more info).
+• Blob storage: for storing BLOBs (see lab 1 for more info).
+• Cosmos DB database: for storing structure data (see lab 2 for more info).
+NOTE: Cosmos DB provides several data models and interfaces. Students are allowed
+to use any that they want.
+3. Testing
+You should develop the necessary scripts for testing your backend service, using artillery.
+During the labs, a base version will be provided – you should extend it to test all operations
+of your system.
+4. Advanced features
+NOTE: make sure that it is easy to turn off the advanced features, so that you can
+execute tests that compare both – suggestion: have flags that control access to the
+additional code needed for the advanced feature.
+4.1 Application-level caching [Mandatory]
+Caching is fundamental for improving the performance of a system by avoiding slow
+database operations and by avoiding repeating the same computations multiple times.
+Improve the base version of your backend by using application-level caching whenever it
+makes sense. To this end, use the Azure Cache for Redis service.
+4.2 Azure Functions [Mandatory]
+Use Azure functions to implement some functionality in your application.
+Suggestion: Use Azure Functions to perform some periodic computation (e.g., close
+auctions, garbage-collection).
+Suggestion: Use Azure Functions to compute whether a Lego Sets is liked on not, based
+on the contents of the comments (integrate with sentiment analysis) – add an endpoint for
+most liked Lego Sets.
+Note: Using Azure Functions to solve geo-replication is not considered for this
+functionality.
+4.3 Extend your system to run in a geo-replicated setting [Optional – 1 points]
+Extend your system to have an efficient geo-replicated deployment in, at least, two data
+centers.
+Note: Cosmos DB allows to specify the data centers in which data should be replicated.
+The same does not occur for Blob Storage. A way to address this issue is to replicate the
+data in the blob store in multiple data centers using Azure functions.
+4.4 Support for advanced search or computations [Optional – up to 2 points]
+Extend your application to include some computation-based functionality (only one is
+needed).
+Suggestion: extends your application to support search on the contents of the comments or
+description of Lego Sets. To this end, integrate your system with Azure Cognitive Search.
+Suggestion: Compute the trending Lego Sets, based on recently added sets. To this end,
+use Apache Spark.
+Suggestion: Compute the trending Lego Sets, based on recently added sets. To this end,
+use Apache Spark.
+Suggestion: For each LegoSet, compute a list of other suggested LegoSets based on the
+users that own both LegoSets. To this end, use Apache Spark.
+5. REPORT AND EVALUATION
+The project report should present the work developed in a clear, concise and complete way
+(suggested maximum dimension: 6 pages in a 11pt font, A4 with decent margins). The
+report should not include code, but can include pseudo-code to help present some design
+features. The following structure is suggested:
+1. Introduction : briefly explain the context and goal of the system being developed;
+2. Design : introduce the design of the system, including the architecture with its main
+components and how these components interact for implementing the different
+features of the system;
+3. Implementation : briefly introduce any implementation detail that you think it is
+worth being highlighted;
+4. Evaluation: evaluation results (and discussion) using artillery.
+5. Conclusions
+The report can be written in Portuguese or English.
+5.1 Minimum evaluation [Mandatory]
+As a minimum, your report should present an evaluation of your system comparing the
+following settings, using artillery:
+a) Application deployed in region X, with caching;
+b) Application deployed in region X, without caching;
+c) Application deployed in some other region Y (make X and Y as far apart as
+possible), with or without caching.
+5.2 Evaluation in geo-replicated setting [Optional – 1 point]
+Evaluate your work by deploying your system in multiple data centers and having clients
+calling the different replicas.
+Note about evaluation: when evaluating your system, use pricing tiers that provide
+predictable quality of service (e.g., use B1 for app services).
+6. GRADING
+The mandatory part of the project (including code, evaluation and report) will be graded in
+up to 16 points (14 points for the code + 2 points for the report). Maximum grading from
+optional part as discussed in this document.
+7. IMPORTANT DATES
+17/October – delivery of checkpoint – at this point, you are expected to have implemented
+the basic functionality + application-level caching;
+7/November – final delivery of the project.

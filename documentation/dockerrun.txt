@@ -1,0 +1,17 @@
+# rebuild image
+docker build -t lego-fct-image /home/ydigit/NOVAFCT/cloud/lego-fct
+
+# se já tiver um tomcat a correr na porta 8080 (vê pelo docker ps)
+docker stop tomcat-local || true
+docker rm tomcat-local || true
+
+# criar o container com o .env
+docker stop lego-fct || true
+docker rm lego-fct || true
+docker run -d --name lego-fct \
+  --env-file /home/ydigit/NOVAFCT/cloud/lego-fct/.env \
+  -p 8080:8080 lego-fct-image
+
+# ver logs / testar
+docker logs -f lego-fct
+curl http://localhost:8080/rest/ctrl/version
