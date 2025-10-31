@@ -19,12 +19,15 @@ public class AuctionResource {
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
     public Response createAuction(Auction auction) {
         if (auction.getId() == null || auction.getId().isEmpty()) {
             auction.setId(UUID.randomUUID().toString());
         }
         AuctionDAO result = db.createAuction(new AuctionDAO(auction));
-        return Response.created(URI.create("/auction/" + result.getId())).build();
+        return Response.created(URI.create("/auction/" + result.getId()))
+                .entity(result.toAuction())
+                .build();
     }
 
     @GET

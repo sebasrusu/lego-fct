@@ -1,17 +1,60 @@
 # rebuild image
-docker build -t lego-fct-image /home/ydigit/NOVAFCT/cloud/lego-fct
+docker build -t lego-fct-image /Users/sebasrusu/Desktop/FCT/Cloud/projeto/lego-fct
 
 # se já tiver um tomcat a correr na porta 8080 (vê pelo docker ps)
 docker stop tomcat-local || true
 docker rm tomcat-local || true
 
 # criar o container com o .env
-docker stop lego-fct || true
-docker rm lego-fct || true
+docker stop lego-fct || true && \
+docker rm lego-fct || true && \
 docker run -d --name lego-fct \
-  --env-file /home/ydigit/NOVAFCT/cloud/lego-fct/.env \
+  --env-file /Users/sebasrusu/Desktop/FCT/Cloud/projeto/lego-fct/.env \
   -p 8080:8080 lego-fct-image
 
 # ver logs / testar
 docker logs -f lego-fct
 curl http://localhost:8080/rest/ctrl/version
+
+
+
+# versao do  Sebastião de dar run
+
+
+PASSO 1: Limpar e recompilar o projeto
+---------------------------------------
+cd /Users/sebasrusu/Desktop/FCT/Cloud/projeto/lego-fct
+
+# Limpa completamente
+mvn clean
+rm -rf target/
+
+# Rebuilda com force update
+mvn clean package -U
+
+# Verifica se o WAR foi criado
+ls -lh target/*.war
+
+
+PASSO 2: Rebuildar a imagem Docker (SEM CACHE)
+-----------------------------------------------
+docker build --no-cache -t lego-fct-image .
+
+
+PASSO 3: Parar e remover containers antigos
+--------------------------------------------
+docker stop lego-fct || true && \
+docker rm lego-fct || true && \
+docker run -d --name lego-fct \
+  --env-file /Users/sebasrusu/Desktop/FCT/Cloud/projeto/lego-fct/.env \
+  -p 8080:8080 \
+  lego-fct-image
+
+
+PASSO 4: Ver logs em tempo real
+--------------------------------
+docker logs -f lego-fct
+
+Passo 5: Testar endpoints
+curl http://localhost:8080/rest/user
+docker logs lego-fct | grep -A 10 "ENV VARS"

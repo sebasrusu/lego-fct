@@ -85,7 +85,80 @@ public class CosmosDBLayer {
 
 	public void deleteUser(String id) {
 		init();
+		String deletedUserId = "deleted-user";
+
+		for (LegoSetDAO ls : listLegoSetsOfUser(id)) {
+			ls.setOwnerId(deletedUserId);
+			updateLegoSet(ls);
+		}
+
+		for (CommentDAO c : listCommentsByUser(id)) {
+			c.setUserId(deletedUserId);
+			updateComment(c);
+		}
+
+		for (AuctionDAO a : listAuctionsOfUser(id)) {
+			a.setSellerId(deletedUserId);
+			updateAuction(a);
+		}
+
 		users.deleteItem(id, new PartitionKey(id), new CosmosItemRequestOptions());
+	}
+
+
+	public void createDeletedUserIfNotExists() {
+		init();
+		String deletedUserId = "deleted-user";
+
+		try {
+			getUser(deletedUserId);
+		} catch (Exception e) {
+			UserDAO deletedUser = new UserDAO();
+			deletedUser.setId(deletedUserId);
+			deletedUser.setNickname("Deleted User");
+			deletedUser.setName("Deleted User");
+			deletedUser.setPwd("");
+			deletedUser.setPhotoId(null);
+			deletedUser.setLegoIds(new String[0]);
+			createUser(deletedUser);
+		}
+	}
+	public CosmosPagedIterable<CommentDAO> listCommentsByUser(String userId) {
+		init();
+		return comments.queryItems(
+				"SELECT * FROM c WHERE c.userId = '" + userId + "'",
+				null,
+				CommentDAO.class
+		);
+	}
+
+	public CosmosPagedIterable<AuctionDAO> listAuctionsOfUser(String userId) {
+		init();
+		return auctions.queryItems(
+				"SELECT * FROM c WHERE c.sellerId = '" + userId + "'",
+				null,
+				AuctionDAO.class
+		);
+	}
+
+	public CommentDAO updateComment(CommentDAO comment) {
+		init();
+		return comments.replaceItem(
+				comment,
+				comment.getId(),
+				new PartitionKey(comment.getId()),
+				null
+		).getItem();
+	}
+
+	public AuctionDAO updateAuction(AuctionDAO auction) {
+		init();
+		return auctions.replaceItem(
+				auction,
+				auction.getId(),
+				new PartitionKey(auction.getId()),
+				null
+		).getItem();
 	}
 
 	public UserDAO findUserByNickname(String name) {
@@ -110,8 +183,14 @@ public class CosmosDBLayer {
 
 	public LegoSetDAO getLegoSet(String id) {
 		init();
-		return legosets.queryItems("SELECT * FROM c WHERE c.id='" + id + "'", null, LegoSetDAO.class).iterator()
-				.next();
+		var results = legosets.queryItems(
+				"SELECT * FROM c WHERE c.id='" + id + "'",
+				null,
+				LegoSetDAO.class
+		);
+		return results.iterator().hasNext()
+				? results.iterator().next()
+				: null;
 	}
 
 	public CosmosPagedIterable<LegoSetDAO> listLegoSets() {
@@ -165,8 +244,14 @@ public class CosmosDBLayer {
 
 	public AuctionDAO getAuction(String auctionId) {
 		init();
-		return auctions.queryItems("SELECT * FROM c WHERE c.id = '" + auctionId + "'", null, AuctionDAO.class)
-				.iterator().next();
+		var results = auctions.queryItems(
+				"SELECT * FROM c WHERE c.id = '" + auctionId + "'",
+				null,
+				AuctionDAO.class
+		);
+		return results.iterator().hasNext()
+				? results.iterator().next()
+				: null;
 	}
 
 	public void addBidToAuction(String auctionId, Bid bid) {

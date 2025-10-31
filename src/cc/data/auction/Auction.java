@@ -16,4 +16,5 @@ public class Auction {
     private double basePrice;
     private long closeDate;
     private List<Bid> bids;
+    private boolean closed;
 }
