@@ -16,7 +16,9 @@ import java.util.stream.StreamSupport;
 @Path("/user")
 public class UserResource {
     private final CosmosDBLayer db = CosmosDBLayer.getInstance();
-
+    public UserResource() {
+        db.createDeletedUserIfNotExists();
+    }
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
@@ -41,6 +43,25 @@ public class UserResource {
         return Response.created(URI.create("/user/" + created.getId()))
                 .entity(created.toUser())
                 .build();
+    }
+
+    @PATCH
+    @Path("/{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response patchUser(@PathParam("id") String id, User updates) {
+        UserDAO existing = db.getUser(id);
+        if (existing == null)
+            return Response.status(Response.Status.NOT_FOUND).build();
+
+        if (updates.getName() != null) existing.setName(updates.getName());
+        if (updates.getNickname() != null) existing.setNickname(updates.getNickname());
+        if (updates.getPhotoId() != null) existing.setPhotoId(updates.getPhotoId());
+        if (updates.getLegoIds() != null) existing.setLegoIds(updates.getLegoIds());
+        if (updates.getPwd() != null && !updates.getPwd().isBlank())
+            existing.setPwd(Hash.of(updates.getPwd()));
+
+        db.updateUser(existing);
+        return Response.ok().build();
     }
 
     @GET

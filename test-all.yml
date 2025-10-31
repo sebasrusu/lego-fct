@@ -1,0 +1,89 @@
+config:
+  target: "http://localhost:8080"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+
+scenarios:
+  - name: "Create User"
+    flow:
+      - post:
+          url: "/rest/user"
+          json:
+            nickname: "user{{ $randomString() }}"
+            name: "Test User"
+            pwd: "password123"
+          capture:
+            - json: "$.id"
+              as: "userId"
+
+  - name: "Create LegoSet"
+    flow:
+      - post:
+          url: "/rest/user"
+          json:
+            nickname: "owner{{ $randomString() }}"
+            name: "Owner"
+            pwd: "pass123"
+          capture:
+            - json: "$.id"
+              as: "ownerId"
+
+      - post:
+          url: "/rest/legoset"
+          json:
+            name: "Lego {{ $randomNumber(1000, 9999) }}"
+            codeNumber: "{{ $randomNumber(1000, 9999) }}"
+            description: "Test set"
+            ownerId: "{{ ownerId }}"
+
+  - name: "Create Auction and Place Bid"
+    flow:
+      - post:
+          url: "/rest/user"
+          json:
+            nickname: "seller{{ $randomString() }}"
+            name: "Seller"
+            pwd: "pass123"
+          capture:
+            - json: "$.id"
+              as: "sellerId"
+
+      - post:
+          url: "/rest/legoset"
+          json:
+            name: "Lego Set"
+            codeNumber: "{{ $randomNumber(1000, 9999) }}"
+            description: "Auction test"
+            ownerId: "{{ sellerId }}"
+          capture:
+            - json: "$.id"
+              as: "legoSetId"
+
+      - post:
+          url: "/rest/auction"
+          json:
+            legoSetId: "{{ legoSetId }}"
+            sellerId: "{{ sellerId }}"
+            basePrice: 50.0
+            closeDate: 9999999999999
+          capture:
+            - json: "$.id"
+              as: "auctionId"
+
+      - post:
+          url: "/rest/user"
+          json:
+            nickname: "bidder{{ $randomString() }}"
+            name: "Bidder"
+            pwd: "pass123"
+          capture:
+            - json: "$.id"
+              as: "bidderId"
+
+      - post:
+          url: "/rest/auction/{{ auctionId }}/bid"
+          json:
+            userId: "{{ bidderId }}"
+            amount: 100.0
+            timestamp: 1700000000000

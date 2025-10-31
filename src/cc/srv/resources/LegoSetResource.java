@@ -20,12 +20,15 @@ public class LegoSetResource {
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
     public Response createLegoSet(LegoSet legoSet) {
         if (legoSet.getId() == null || legoSet.getId().isEmpty()) {
             legoSet.setId(UUID.randomUUID().toString());
         }
         LegoSetDAO result = db.createLegoSet(new LegoSetDAO(legoSet));
-        return Response.created(URI.create("/legoset/" + result.getId())).build();
+        return Response.created(URI.create("/legoset/" + result.getId()))
+                .entity(result.toLegoSet())
+                .build();
     }
 
     @GET

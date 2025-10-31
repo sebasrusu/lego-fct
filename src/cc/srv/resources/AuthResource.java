@@ -11,19 +11,20 @@ import jakarta.ws.rs.core.*;
 
 import java.util.UUID;
 
-@Path("/auth")
+@Path("/user")
 public class AuthResource {
     private final CosmosDBLayer db = CosmosDBLayer.getInstance();
 
     @POST
+    @Path("/auth")
     @Consumes(MediaType.APPLICATION_JSON)
     public Response auth(Login login) {
-        if (login == null || login.getNickname() == null || login.getPassword() == null)
+        if (login == null || login.getUser() == null || login.getPwd() == null)
             throw new NotAuthorizedException("Credenciais em falta");
 
-        UserDAO dao = db.findUserByNickname(login.getNickname());
+        UserDAO dao = db.findUserByNickname(login.getUser());
         boolean ok = dao != null && dao.getPwd() != null
-                && dao.getPwd().equals(Hash.of(login.getPassword()));
+                && dao.getPwd().equals(Hash.of(login.getPwd()));
 
         if (!ok) throw new NotAuthorizedException("Login incorreto");
 

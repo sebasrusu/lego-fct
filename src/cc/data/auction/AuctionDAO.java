@@ -17,6 +17,7 @@ public class AuctionDAO {
     private double basePrice;
     private long closeDate;
     private List<Bid> bids;
+    private boolean closed;
 
     public AuctionDAO(Auction a) {
         this.id = a.getId();
@@ -25,9 +26,10 @@ public class AuctionDAO {
         this.basePrice = a.getBasePrice();
         this.closeDate = a.getCloseDate();
         this.bids = (a.getBids() != null) ? a.getBids() : new ArrayList<>();
+        this.closed = false;
     }
 
     public Auction toAuction() {
-        return new Auction(id, legoSetId, sellerId, basePrice, closeDate, bids);
+        return new Auction(id, legoSetId, sellerId, basePrice, closeDate, bids, closed);
     }
 }
