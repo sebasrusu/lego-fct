@@ -1,8 +1,11 @@
 package cc.db;
 
+import cc.utils.AzureProperties;
 import cc.data.auth.Session;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import redis.clients.jedis.JedisPooled;
+
+import java.util.Properties;
 
 public class RedisLayer {
     private static final RedisLayer INSTANCE = new RedisLayer();
@@ -12,10 +15,27 @@ public class RedisLayer {
     private final ObjectMapper mapper = new ObjectMapper();
     private final int ttlSeconds = 3600; // 1h
 
+    // try env first, then azurekeys.props
+    private static final String REDIS_URL;
+    private static final String REDIS_KEY;
+
+    static {
+        String url = System.getenv("REDIS_URL");
+        String key = System.getenv("REDIS_KEY");
+        try {
+            Properties p = AzureProperties.getProperties();
+            if ((url == null || url.isEmpty()) && p.getProperty(AzureProperties.REDIS_URL) != null)
+                url = p.getProperty(AzureProperties.REDIS_URL);
+            if ((key == null || key.isEmpty()) && p.getProperty(AzureProperties.REDIS_KEY) != null)
+                key = p.getProperty(AzureProperties.REDIS_KEY);
+        } catch (Exception ignored) {}
+        REDIS_URL = url;
+        REDIS_KEY = key;
+    }
+
     private RedisLayer() {
-        String url = System.getenv("REDIS_URL"); // rediss://:<key>@<host>:6380
-        if (url == null) throw new IllegalStateException("REDIS_URL em falta.");
-        jedis = new JedisPooled(url);
+        if (REDIS_URL == null) throw new IllegalStateException("REDIS_URL em falta.");
+        jedis = new JedisPooled(REDIS_URL);
     }
 
     public void putSession(Session s) {

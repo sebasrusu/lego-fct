@@ -1,5 +1,5 @@
 'use strict';
-
+let decideNextAction
 /***
  * Exported functions to be used in the testing scripts.
  */
