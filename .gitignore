@@ -33,3 +33,28 @@ build/
 
 ### VS Code ###
 .vscode/
+
+images/
+
+# Node modules and package lock
+node_modules/
+package-lock.json
+yarn.lock
+
+# local test outputs / reports
+report-*.json
+*.log
+report-*.txt
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# local test images (already added)
+images/
+
+# let Git handle line endings, but ensure .d.ts and others use LF
+* text=auto
+*.d.ts text eol=lf
+*.sh text eol=lf
