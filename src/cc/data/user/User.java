@@ -11,11 +11,9 @@ import lombok.NoArgsConstructor;
 public class User {
 	private String id;
 	private String name;
-	private String nickname;
 
-	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	//@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String pwd;
-
 	private String photoId;
 	private String[] legoIds;
 }

@@ -115,7 +115,6 @@ public class CosmosDBLayer {
 		} catch (Exception e) {
 			UserDAO deletedUser = new UserDAO();
 			deletedUser.setId(deletedUserId);
-			deletedUser.setNickname("Deleted User");
 			deletedUser.setName("Deleted User");
 			deletedUser.setPwd("");
 			deletedUser.setPhotoId(null);
@@ -161,6 +160,7 @@ public class CosmosDBLayer {
 		).getItem();
 	}
 
+	/*
 	public UserDAO findUserByNickname(String name) {
 		init();
 
@@ -173,7 +173,7 @@ public class CosmosDBLayer {
 				users.queryItems(spec, new CosmosQueryRequestOptions(), UserDAO.class);
 
 		return result.iterator().hasNext() ? result.iterator().next() : null;
-	}
+	}*/
 
 	// --- LegoSet Methods ---
 	public LegoSetDAO createLegoSet(LegoSetDAO ls) {

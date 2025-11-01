@@ -15,7 +15,7 @@ module.exports = {
   genNewOldBid,
   selectUser,
   selectUserSkewed,
-  decideNextAction,
+  //decideNextAction,
   selectAuction,
   random20,
   random50,
@@ -35,15 +35,16 @@ module.exports = {
 const fs = require('fs')
 const { fakerEN, faker } = require('@faker-js/faker');
 
-var imagesIds = []
-var images = []
+//var imagesIds = []
+//var images = []
 var users = []
 
-
+/*
 function genProductCommentText(productName) {
   const template = legoCommentsTemplates.sample();
   return template.replace("{product}", productName);
-}
+}*/
+
 
 // Auxiliary function to select an element from an array
 Array.prototype.sample = function () {
@@ -93,7 +94,7 @@ function loadData() {
   }
 }
 
-loadData();
+//loadData();
 
 /**
  * Sets the body to an image, when using images.
@@ -364,6 +365,7 @@ function randomLoop95(context, next) {
   return next(continueLooping);
 }
 
+/*
 const legoCommentsTemplates = [
   // Positive comments
   "I recently purchased the {product} and it was such a fun building experience; the instructions were clear and the pieces fit perfectly.",
@@ -449,3 +451,4 @@ const legoCommentsTemplates = [
   "I completed the {product}, but I think it could have been more challenging to justify the price.",
   "The {product} is enjoyable, yet some small details feel lacking compared to other LEGO sets."
 ];
+*/
