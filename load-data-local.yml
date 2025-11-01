@@ -3,7 +3,7 @@ config:
   plugins:
     metrics-by-endpoint:
       useOnlyRequestNames: true
-  processor: "./processor.js"
+  processor: "./test-utils.js"
   phases:
   - name: "Create users"    # Create users
     duration: 1
