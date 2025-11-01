@@ -187,7 +187,7 @@ public class CosmosDBLayer {
                 null
         ).getItem();
     }
-
+    
     public UserDAO findUserByNickname(String name) {
         init();
 

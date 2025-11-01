@@ -23,15 +23,15 @@ public class UserResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response createUser(User user) {
-        if (user.getNickname() == null || user.getNickname().isBlank() || user.getPwd() == null || user.getPwd().isBlank()) {
+        if (user.getName() == null || user.getName().isBlank() || user.getPwd() == null || user.getPwd().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Nickname e password são obrigatórios.").build();
+                    .entity("Name e password são obrigatórios.").build();
         }
 
-        if (db.findUserByNickname(user.getNickname()) != null) {
+        /*if (db.findUserByNickname(user.getNickname()) != null) {
             return Response.status(Response.Status.CONFLICT)
                     .entity("Nickname já existe.").build();
-        }
+        }*/
 
         if (user.getId() == null || user.getId().isBlank())
             user.setId(UUID.randomUUID().toString());
@@ -54,7 +54,6 @@ public class UserResource {
             return Response.status(Response.Status.NOT_FOUND).build();
 
         if (updates.getName() != null) existing.setName(updates.getName());
-        if (updates.getNickname() != null) existing.setNickname(updates.getNickname());
         if (updates.getPhotoId() != null) existing.setPhotoId(updates.getPhotoId());
         if (updates.getLegoIds() != null) existing.setLegoIds(updates.getLegoIds());
         if (updates.getPwd() != null && !updates.getPwd().isBlank())
@@ -105,7 +104,6 @@ public class UserResource {
         UserDAO toUpdate = new UserDAO(new User(
                 id,
                 user.getName() != null ? user.getName() : existing.getName(),
-                user.getNickname() != null ? user.getNickname() : existing.getNickname(),
                 newPwdHash,
                 user.getPhotoId() != null ? user.getPhotoId() : existing.getPhotoId(),
                 user.getLegoIds() != null ? user.getLegoIds() : existing.getLegoIds()
