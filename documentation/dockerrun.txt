@@ -58,3 +58,16 @@ docker logs -f lego-fct
 Passo 5: Testar endpoints
 curl http://localhost:8080/rest/user
 docker logs lego-fct | grep -A 10 "ENV VARS"
+
+
+
+-------------------------------------------------------
+rebuild do docker
+
+cd /home/ydigit/NOVAFCT/cloud/lego-fct
+mvn clean package -U
+docker build -t lego-fct-image .
+docker stop lego-fct || true
+docker rm lego-fct || true
+docker run -d --name lego-fct --env-file /home/ydigit/NOVAFCT/cloud/lego-fct/.env -p 8080:8080 lego-fct-image
+docker logs -f lego-fct
