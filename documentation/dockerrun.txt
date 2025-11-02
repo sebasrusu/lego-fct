@@ -66,8 +66,8 @@ rebuild do docker
 
 cd /home/ydigit/NOVAFCT/cloud/lego-fct
 mvn clean package -U
-docker build -t lego-fct-image .
-docker stop lego-fct || true
-docker rm lego-fct || true
-docker run -d --name lego-fct --env-file /home/ydigit/NOVAFCT/cloud/lego-fct/.env -p 8080:8080 lego-fct-image
-docker logs -f lego-fct
+sudo docker build -t lego-fct-image .
+sudo docker stop lego-fct || true
+sudo docker rm lego-fct || true
+sudo docker run -d --name lego-fct --env-file /home/ydigit/NOVAFCT/cloud/lego-fct/.env -p 8080:8080 lego-fct-image
+sudo docker logs -f lego-fct

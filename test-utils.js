@@ -44,11 +44,11 @@ var users = []
 
 try { loadData(); } catch (e) { console.warn('loadData error:', e.message); }
 
-/*
+
 function genProductCommentText(productName) {
   const template = legoCommentsTemplates.sample();
   return template.replace("{product}", productName);
-}*/
+}
 
 
 // Auxiliary function to select an element from an array

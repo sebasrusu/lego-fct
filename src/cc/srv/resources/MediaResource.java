@@ -3,6 +3,9 @@ package cc.srv.resources;
 import cc.utils.Hash;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.core.util.Context;
+import com.azure.storage.blob.models.BlobHttpHeaders;
+import com.azure.storage.blob.BlobClient;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -97,9 +100,18 @@ public class MediaResource {
                 throw new WebApplicationException("Local storage error", Response.Status.INTERNAL_SERVER_ERROR);
             }
         } else {
-            containerClient.getBlobClient(id).upload(
-                new ByteArrayInputStream(contents), contents.length, true
-            );
+            BlobClient blob = containerClient.getBlobClient(id);
+            String ct = (contentType != null && !contentType.isBlank()) ? contentType : "application/octet-stream";
+            BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(ct);
+            java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(contents);
+            try {
+                blob.uploadWithResponse(inputStream, contents.length, null, headers, null, null, null, java.time.Duration.ofMinutes(1), Context.NONE);
+            } catch (Exception e) {
+                LOG.log(Level.SEVERE, "Failed to upload blob", e);
+                throw new WebApplicationException("Blob upload error", Response.Status.INTERNAL_SERVER_ERROR);
+            } finally {
+                try { inputStream.close(); } catch (IOException ex) { LOG.log(Level.FINE, "Failed to close upload input stream", ex); }
+            }
             return Response.ok("\"" + id + "\"").build();
         }
     }
