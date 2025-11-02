@@ -13,8 +13,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.io.ByteArrayInputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -22,11 +20,15 @@ import java.nio.file.DirectoryStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.time.Duration;
+import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Path("/media")
 public class MediaResource {
 
-    private static final Logger LOG = Logger.getLogger(MediaResource.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(MediaResource.class);
 
     private volatile BlobContainerClient containerClient;
     private final Object lock = new Object();
@@ -46,15 +48,18 @@ public class MediaResource {
                     String connectionString = System.getenv("BlobStoreConnection");
                     String containerName = System.getenv().getOrDefault("AZURE_STORAGE_CONTAINER", "media");
                     if (connectionString == null || connectionString.trim().isEmpty()) {
-                        // fallback to local filesystem storage (dev convenience)
+                        if (FORCE_AZURE_BLOB) {
+                            LOG.error("FORCE_AZURE_BLOB=1 but BlobStoreConnection is missing");
+                            throw new WebApplicationException("BlobStoreConnection missing and FORCE_AZURE_BLOB set", Response.Status.INTERNAL_SERVER_ERROR);
+                        }
                         try {
                             localMode = true;
                             localDir = Paths.get(System.getProperty("user.dir"), "media-store");
                             Files.createDirectories(localDir);
-                            LOG.log(Level.INFO, "BlobStoreConnection missing — using local media dir: {0}", localDir.toString());
+                            LOG.info("BlobStoreConnection missing — using local media dir: {}", localDir.toString());
                             return;
                         } catch (IOException ioe) {
-                            LOG.log(Level.SEVERE, "Failed to create local media dir", ioe);
+                            LOG.error("Failed to create local media dir", ioe);
                             throw new WebApplicationException("Server misconfigured: missing BlobStoreConnection and cannot create local storage", Response.Status.INTERNAL_SERVER_ERROR);
                         }
                     }
@@ -63,18 +68,17 @@ public class MediaResource {
                                 .connectionString(connectionString)
                                 .buildClient();
                         var client = svc.getBlobContainerClient(containerName);
-                        // create container if missing (dev convenience)
                         try {
                             if (!client.exists()) client.create();
                         } catch (Exception e) {
-                            LOG.log(Level.WARNING, "Could not create/verify container '{0}': {1}", new Object[]{containerName, e.getMessage()});
+                            LOG.warn("Could not create/verify container '{}' : {}", containerName, e.getMessage());
                         }
                         containerClient = client;
                     } catch (IllegalArgumentException iae) {
-                        LOG.log(Level.SEVERE, "Invalid Azure Blob connection string", iae);
+                        LOG.error("Invalid Azure Blob connection string", iae);
                         throw new WebApplicationException("Invalid BlobStoreConnection", Response.Status.INTERNAL_SERVER_ERROR);
                     } catch (Exception e) {
-                        LOG.log(Level.SEVERE, "Failed to initialize Blob container client", e);
+                        LOG.error("Failed to initialize Blob container client", e);
                         throw new WebApplicationException("Blob init error", Response.Status.INTERNAL_SERVER_ERROR);
                     }
                 }
@@ -86,8 +90,10 @@ public class MediaResource {
     @Consumes({ "image/*", "video/*" })
     @Produces(MediaType.APPLICATION_JSON)
     public Response upload(@HeaderParam("Content-Type") String contentType, byte[] contents) {
+        Instant start = Instant.now();
         ensureContainerClient();
         String id = Hash.of(contents);
+        long elapsed;
         if (localMode) {
             try {
                 java.nio.file.Path f = localDir.resolve(id);
@@ -96,25 +102,29 @@ public class MediaResource {
                 if (contentType != null && !contentType.isBlank()) {
                     Files.writeString(localDir.resolve(id + ".ct"), contentType, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 }
-                return Response.ok("\"" + id + "\"").build();
+                elapsed = Duration.between(start, Instant.now()).toMillis();
+                LOG.info("POST /rest/media stored locally in {} ms (id={})", elapsed, id);
+                return Response.ok("\"" + id + "\"").header("X-Backend-Time-ms", String.valueOf(elapsed)).build();
             } catch (IOException e) {
-                LOG.log(Level.SEVERE, "Failed to write local media file", e);
+                LOG.error("Failed to write local media file", e);
                 throw new WebApplicationException("Local storage error", Response.Status.INTERNAL_SERVER_ERROR);
             }
-        } else {
-            BlobClient blob = containerClient.getBlobClient(id);
-            String ct = (contentType != null && !contentType.isBlank()) ? contentType : "application/octet-stream";
-            BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(ct);
-            java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(contents);
-            try {
-                blob.uploadWithResponse(inputStream, contents.length, null, headers, null, null, null, java.time.Duration.ofMinutes(1), Context.NONE);
-            } catch (Exception e) {
-                LOG.log(Level.SEVERE, "Failed to upload blob", e);
-                throw new WebApplicationException("Blob upload error", Response.Status.INTERNAL_SERVER_ERROR);
-            } finally {
-                try { inputStream.close(); } catch (IOException ex) { LOG.log(Level.FINE, "Failed to close upload input stream", ex); }
-            }
-            return Response.ok("\"" + id + "\"").build();
+        }
+        // Azure blob path
+        BlobClient blob = containerClient.getBlobClient(id);
+        String ct = (contentType != null && !contentType.isBlank()) ? contentType : "application/octet-stream";
+        BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(ct);
+        java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(contents);
+        try {
+            blob.uploadWithResponse(inputStream, contents.length, null, headers, null, null, null, java.time.Duration.ofMinutes(1), Context.NONE);
+            elapsed = Duration.between(start, Instant.now()).toMillis();
+            LOG.info("POST /rest/media uploaded to blob in {} ms (id={})", elapsed, id);
+            return Response.ok("\"" + id + "\"").header("X-Backend-Time-ms", String.valueOf(elapsed)).build();
+        } catch (Exception e) {
+            LOG.error("Failed to upload blob", e);
+            throw new WebApplicationException("Blob upload error", Response.Status.INTERNAL_SERVER_ERROR);
+        } finally {
+            try { inputStream.close(); } catch (IOException ex) { LOG.debug("Failed to close upload input stream", ex); }
         }
     }
 
@@ -173,6 +183,17 @@ public class MediaResource {
             return containerClient.listBlobs().stream()
                     .map(blob -> blob.getName())
                     .collect(Collectors.toList());
+        }
+    }
+
+    public Response uploadMedia() {
+        Instant start = Instant.now();
+        try {
+            Response resp = doActualUpload();
+            return resp;
+        } finally {
+            long ms = Duration.between(start, Instant.now()).toMillis();
+            LOG.info("POST /rest/media handled in {} ms", ms);
         }
     }
 }
