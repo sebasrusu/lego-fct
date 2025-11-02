@@ -142,7 +142,7 @@ public class CosmosDBLayer {
         if (u == null) {
             UserDAO deletedUser = new UserDAO();
             deletedUser.setId(deletedUserId);
-            deletedUser.setNickname("Deleted User");
+            //deletedUser.setNickname("Deleted User");
             deletedUser.setName("Deleted User");
             deletedUser.setPwd("");
             deletedUser.setPhotoId(null);
