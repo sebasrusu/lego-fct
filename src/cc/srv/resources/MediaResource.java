@@ -21,20 +21,22 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.DirectoryStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Objects;
 
 @Path("/media")
 public class MediaResource {
 
     private static final Logger LOG = Logger.getLogger(MediaResource.class.getName());
 
-    // azure client (lazy) or local fallback
     private volatile BlobContainerClient containerClient;
     private final Object lock = new Object();
     private volatile boolean localMode = false;
     private java.nio.file.Path localDir;
 
+    private static final boolean FORCE_AZURE_BLOB =
+        "1".equals(System.getenv("FORCE_AZURE_BLOB"));
+
     public MediaResource() {
-        // keep constructor lightweight - init on first request
     }
 
     private void ensureContainerClient() {
