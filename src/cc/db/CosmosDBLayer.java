@@ -287,6 +287,13 @@ public class CosmosDBLayer {
                 CosmosPatchOperations.create().add("/bids/-", bid), AuctionDAO.class);
     }
 
+    public CosmosPagedIterable<AuctionDAO> listExpiredAuctions() {
+		init();
+		return auctions.queryItems(
+				"SELECT * FROM c WHERE c.closed != true AND c.closeDate < " + System.currentTimeMillis(),
+				null, AuctionDAO.class);
+	}
+
     public CosmosPagedIterable<AuctionDAO> searchAuctionForLegoSet(String legoSetId) {
         init();
         return auctions.queryItems(
