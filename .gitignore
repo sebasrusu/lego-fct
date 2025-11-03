@@ -58,3 +58,9 @@ images/
 * text=auto
 *.d.ts text eol=lf
 *.sh text eol=lf
+
+
+##pythonnnn
+
+.venv/
+venv/

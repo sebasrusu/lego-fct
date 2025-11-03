@@ -38,12 +38,17 @@ const { fakerEN, faker } = require('@faker-js/faker');
 //var imagesIds = []
 //var images = []
 var users = []
+var images = []
+var imagesIds = []
+var users = []
 
-/*
+try { loadData(); } catch (e) { console.warn('loadData error:', e.message); }
+
+
 function genProductCommentText(productName) {
   const template = legoCommentsTemplates.sample();
   return template.replace("{product}", productName);
-}*/
+}
 
 
 // Auxiliary function to select an element from an array
@@ -111,6 +116,7 @@ function uploadImageBody(requestParams, context, ee, next) {
 function processUploadReply(requestParams, response, context, ee, next) {
   if (typeof response.body !== 'undefined' && response.body.length > 0) {
     imagesIds.push(response.body)
+    try { context.vars.photoId = (typeof response.body === 'string') ? response.body : JSON.parse(response.body); } catch (e) { context.vars.photoId = response.body; }
   }
   return next()
 }
@@ -365,7 +371,7 @@ function randomLoop95(context, next) {
   return next(continueLooping);
 }
 
-/*
+
 const legoCommentsTemplates = [
   // Positive comments
   "I recently purchased the {product} and it was such a fun building experience; the instructions were clear and the pieces fit perfectly.",
@@ -451,4 +457,3 @@ const legoCommentsTemplates = [
   "I completed the {product}, but I think it could have been more challenging to justify the price.",
   "The {product} is enjoyable, yet some small details feel lacking compared to other LEGO sets."
 ];
-*/
