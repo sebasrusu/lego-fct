@@ -53,13 +53,12 @@ public class AzureManagement {
     static final String[] BLOB_CONTAINERS = { "media", "images" };
 
     // regions used by SDK operations (use Region.fromName to avoid missing enum issue)
-    static final Region[] REGIONS = new Region[] { Region.fromName("spaincentral") };
-
-    // existing resource group / app / storage / redis names in your subscription
-    static final String[] AZURE_RG_REGIONS = new String[] { "cc2526" };
+    static final Region[] REGIONS = new Region[] { Region.fromName("italynorth") };
+    // Use a region-specific resource group name to avoid conflicts with an existing RG in another location
+    static final String[] AZURE_RG_REGIONS = new String[] { "cc2526-italynorth" };
     static final String[] AZURE_APP_NAME = new String[] { "cc2526" };
     static final String[] AZURE_STORAGE_NAME = new String[] { "cc2526mediablob" };
-    static final String[] AZURE_REDIS_NAME = new String[] { "cc2526redis01" };
+    static final String[] AZURE_REDIS_NAME = new String[] { "cc2526redis02" };
     static final String[] AZURE_FUNCTIONS_NAME = new String[] { null };
 
     static final String[] AZURE_PROPS_LOCATIONS = Arrays.stream(REGIONS)

@@ -5,6 +5,8 @@ import com.microsoft.azure.functions.*;
 import com.microsoft.azure.functions.annotation.*;
 import com.azure.cosmos.*;
 import com.azure.cosmos.models.*;
+import java.util.logging.Logger;
+import cc.db.CosmosDBLayer;
 
 public class CloseAuctionsFunction {
 
