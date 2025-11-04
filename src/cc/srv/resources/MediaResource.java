@@ -148,7 +148,7 @@ public class MediaResource {
                 if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM;
                 return Response.ok(data, ct).build();
             } catch (IOException e) {
-                LOG.log(Level.FINE, "Local download failed for id {0}: {1}", new Object[]{id, e.getMessage()});
+                LOG.debug("Local download failed for id {}: {}", id, e.getMessage(), e);
                 return Response.status(Response.Status.NOT_FOUND).build();
             }
         } else {
@@ -158,7 +158,7 @@ public class MediaResource {
                 String contentType = blobClient.getProperties().getContentType();
                 return Response.ok(os.toByteArray(), contentType).build();
             } catch (Exception e) {
-                LOG.log(Level.FINE, "Download failed for id {0}: {1}", new Object[]{id, e.getMessage()});
+                LOG.debug("Download failed for id {}: {}", id, e.getMessage(), e);
                 return Response.status(Response.Status.NOT_FOUND).build();
             }
         }
@@ -176,7 +176,7 @@ public class MediaResource {
                 }
                 return names;
             } catch (IOException e) {
-                LOG.log(Level.WARNING, "Failed to list local media", e);
+                LOG.warn("Failed to list local media", e);
                 return List.of();
             }
         } else {
@@ -186,14 +186,14 @@ public class MediaResource {
         }
     }
 
-    public Response uploadMedia() {
-        Instant start = Instant.now();
-        try {
-            Response resp = doActualUpload();
-            return resp;
-        } finally {
-            long ms = Duration.between(start, Instant.now()).toMillis();
-            LOG.info("POST /rest/media handled in {} ms", ms);
-        }
-    }
+    // public Response uploadMedia() {
+    //     Instant start = Instant.now();
+    //     try {
+    //         Response resp = doActualUpload();
+    //         return resp;
+    //     } finally {
+    //         long ms = Duration.between(start, Instant.now()).toMillis();
+    //         LOG.info("POST /rest/media handled in {} ms", ms);
+    //     }
+    // }
 }
