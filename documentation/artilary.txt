@@ -10,3 +10,15 @@ npm install --no-audit --no-fund --save-dev artillery @faker-js/faker
 
 # correr o load
 npx artillery run load-data.yml
+
+# sebas
+
+[ -e images ] && rm -rf images
+ln -s /Users/sebasrusu/Desktop/proj-test/images images
+
+# garantir package.json e instalar dependências locais (sem sudo)
+[ -f package.json ] || npm init -y
+npm install --no-audit --no-fund --save-dev artillery @faker-js/faker
+
+# correr o load
+npx artillery run load-data.yml
