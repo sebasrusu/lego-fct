@@ -5,6 +5,7 @@ import cc.data.comment.CommentDAO;
 import cc.data.lego.LegoSet;
 import cc.data.lego.LegoSetDAO;
 import cc.db.CosmosDBLayer;
+import com.azure.cosmos.CosmosException;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -25,10 +26,21 @@ public class LegoSetResource {
         if (legoSet.getId() == null || legoSet.getId().isEmpty()) {
             legoSet.setId(UUID.randomUUID().toString());
         }
-        LegoSetDAO result = db.createLegoSet(new LegoSetDAO(legoSet));
-        return Response.created(URI.create("/legoset/" + result.getId()))
-                .entity(result.toLegoSet())
-                .build();
+        // Validação para garantir que o ownerId foi fornecido
+        if (legoSet.getOwnerId() == null || legoSet.getOwnerId().isEmpty()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("LegoSet must have an ownerId.").build();
+        }
+        try {
+            LegoSetDAO result = db.createLegoSet(new LegoSetDAO(legoSet));
+            return Response.created(URI.create("/legoset/" + result.getId()))
+                    .entity(result.toLegoSet())
+                    .build();
+        } catch (CosmosException e) {
+            if (e.getStatusCode() == 409) {
+                return Response.status(Response.Status.CONFLICT).entity("LegoSet already exists.").build();
+            }
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
+        }
     }
 
     @GET
@@ -41,13 +53,14 @@ public class LegoSetResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<LegoSet> listLegoSets(@QueryParam("userId") String userId, @QueryParam("recent") boolean recent) {
+    public List<LegoSet> listLegoSets(@QueryParam("userId") String userId, @QueryParam("recent") String recent, @QueryParam("st") @DefaultValue("0") int st, @QueryParam("len") @DefaultValue("20") int len) {
         if (userId != null && !userId.isEmpty()) {
             return StreamSupport.stream(db.listLegoSetsOfUser(userId).spliterator(), false)
                     .map(LegoSetDAO::toLegoSet).collect(Collectors.toList());
         }
-        if(recent) {
-            return StreamSupport.stream(db.listMostRecentLegoSets().spliterator(), false)
+        if(recent != null) {
+            // Esta é a linha que precisa de ser corrigida
+            return StreamSupport.stream(db.listMostRecentLegoSets(st, len).spliterator(), false)
                     .map(LegoSetDAO::toLegoSet).collect(Collectors.toList());
         }
         return StreamSupport.stream(db.listLegoSets().spliterator(), false)
@@ -76,12 +89,15 @@ public class LegoSetResource {
     @Path("/{id}/comment")
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createComment(@PathParam("id") String legoSetId, Comment comment) {
+        if (comment.getCommentText() == null || comment.getCommentText().isEmpty()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Comment text cannot be empty.").build();
+        }
         comment.setLegoSetId(legoSetId);
         if (comment.getId() == null || comment.getId().isEmpty()) {
             comment.setId(UUID.randomUUID().toString());
         }
         db.createComment(new CommentDAO(comment));
-        return Response.status(Response.Status.CREATED).build();
+        return Response.status(Response.Status.CREATED).entity(comment).build();
     }
 
     @GET

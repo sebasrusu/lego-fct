@@ -9,11 +9,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-	private String id;
-	private String name;
+    private String id;
+    private String name;
 
-	//@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-	private String pwd;
-	private String photoId;
-	private String[] legoIds;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String pwd;
+    private String photoId;
+    private String[] legoIds;
+
+    public User toUser() {
+        return new User(id, name, null, photoId, legoIds);
+    }
 }

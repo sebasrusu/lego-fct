@@ -5,7 +5,7 @@ import jakarta.ws.rs.core.Application;
 import java.util.HashSet;
 import java.util.Set;
 
-
+@ApplicationPath("/rest")
 public class MainApplication extends Application {
     private final Set<Class<?>> resources = new HashSet<>();
 

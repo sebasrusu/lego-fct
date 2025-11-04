@@ -32,12 +32,16 @@ public class AuctionResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Auction> listAuctions(@QueryParam("legoSetId") String legoSetId) {
+    public List<Auction> listAuctions(@QueryParam("legoSetId") String legoSetId, @QueryParam("recent") String recent, @QueryParam("st") @DefaultValue("0") int st, @QueryParam("len") @DefaultValue("20") int len) {
         if (legoSetId != null && !legoSetId.isEmpty()) {
             return StreamSupport.stream(db.searchAuctionForLegoSet(legoSetId).spliterator(), false)
                     .map(AuctionDAO::toAuction).collect(Collectors.toList());
         }
-        return StreamSupport.stream(db.listAuctions().spliterator(), false)
+        if (recent != null) {
+             return StreamSupport.stream(db.listAuctions(st, len).spliterator(), false)
+                .map(AuctionDAO::toAuction).collect(Collectors.toList());
+        }
+        return StreamSupport.stream(db.listAuctions(st, len).spliterator(), false)
                 .map(AuctionDAO::toAuction).collect(Collectors.toList());
     }
 
@@ -45,11 +49,18 @@ public class AuctionResource {
     @Path("/{id}/bid")
     @Consumes(MediaType.APPLICATION_JSON)
     public Response placeBid(@PathParam("id") String auctionId, Bid bid) {
+        // Primeiro, obtemos o leilão para verificar se ele existe.
         AuctionDAO auction = db.getAuction(auctionId);
-        if (auction == null || auction.getCloseDate() < System.currentTimeMillis()) {
-            return Response.status(Response.Status.FORBIDDEN).entity("\"Leilão não existe ou já fechou.\"").build();
+        
+        // Se o leilão não for encontrado, retornamos um erro 404 Not Found.
+        if (auction == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
+        
+        // Se o leilão existir, adicionamos o lance. Esta chamada não retorna nada.
         db.addBidToAuction(auctionId, bid);
+        
+        // Retornamos uma resposta de sucesso.
         return Response.ok().build();
     }
 }

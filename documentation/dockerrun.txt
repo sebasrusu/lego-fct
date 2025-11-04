@@ -32,17 +32,9 @@ rm -rf target/
 # Rebuilda com force update
 mvn clean package -U
 
-# Verifica se o WAR foi criado
 ls -lh target/*.war
 
-
-PASSO 2: Rebuildar a imagem Docker (SEM CACHE)
------------------------------------------------
 docker build --no-cache -t lego-fct-image .
-
-
-PASSO 3: Parar e remover containers antigos
---------------------------------------------
 docker stop lego-fct || true && \
 docker rm lego-fct || true && \
 docker run -d --name lego-fct \
