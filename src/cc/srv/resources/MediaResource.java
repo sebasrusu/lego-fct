@@ -13,13 +13,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.io.ByteArrayInputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.DirectoryStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Objects;
 import java.time.Duration;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -32,51 +25,44 @@ public class MediaResource {
 
     private volatile BlobContainerClient containerClient;
     private final Object lock = new Object();
-    private volatile boolean localMode = false;
-    private java.nio.file.Path localDir;
 
-    private static final boolean FORCE_AZURE_BLOB =
-        "1".equals(System.getenv("FORCE_AZURE_BLOB"));
-
-    public MediaResource() {
-    }
+    public MediaResource() { }
 
     private void ensureContainerClient() {
-        if (containerClient == null && !localMode) {
+        if (containerClient == null) {
             synchronized (lock) {
-                if (containerClient == null && !localMode) {
+                if (containerClient == null) {
                     String connectionString = System.getenv("BlobStoreConnection");
-                    String containerName = System.getenv().getOrDefault("AZURE_STORAGE_CONTAINER", "media");
                     if (connectionString == null || connectionString.trim().isEmpty()) {
-                        if (FORCE_AZURE_BLOB) {
-                            LOG.error("FORCE_AZURE_BLOB=1 but BlobStoreConnection is missing");
-                            throw new WebApplicationException("BlobStoreConnection missing and FORCE_AZURE_BLOB set", Response.Status.INTERNAL_SERVER_ERROR);
-                        }
+                        // try azurekeys.props as fallback only for server envs where .env not used
                         try {
-                            localMode = true;
-                            localDir = Paths.get(System.getProperty("user.dir"), "media-store");
-                            Files.createDirectories(localDir);
-                            LOG.info("BlobStoreConnection missing — using local media dir: {}", localDir.toString());
-                            return;
-                        } catch (IOException ioe) {
-                            LOG.error("Failed to create local media dir", ioe);
-                            throw new WebApplicationException("Server misconfigured: missing BlobStoreConnection and cannot create local storage", Response.Status.INTERNAL_SERVER_ERROR);
-                        }
+                            var props = cc.utils.AzureProperties.getProperties();
+                            connectionString = props.getProperty(cc.utils.AzureProperties.BLOB_KEY);
+                        } catch (Exception ignored) {}
                     }
+                    if (connectionString == null || connectionString.trim().isEmpty()) {
+                        LOG.error("BlobStoreConnection missing (no .env / azurekeys.props).");
+                        throw new WebApplicationException("BlobStoreConnection missing", Response.Status.INTERNAL_SERVER_ERROR);
+                    }
+
+                    String containerName = System.getenv().getOrDefault("AZURE_STORAGE_CONTAINER", "media");
                     try {
                         var svc = new BlobServiceClientBuilder()
                                 .connectionString(connectionString)
                                 .buildClient();
                         var client = svc.getBlobContainerClient(containerName);
-                        try {
-                            if (!client.exists()) client.create();
-                        } catch (Exception e) {
-                            LOG.warn("Could not create/verify container '{}' : {}", containerName, e.getMessage());
+                        // do NOT create container; require it to exist
+                        if (!client.exists()) {
+                            LOG.error("Blob container '{}' does not exist in storage account.", containerName);
+                            throw new WebApplicationException("Blob container not found: " + containerName, Response.Status.INTERNAL_SERVER_ERROR);
                         }
                         containerClient = client;
+                        LOG.info("Connected to Azure Blob container '{}'", containerName);
                     } catch (IllegalArgumentException iae) {
                         LOG.error("Invalid Azure Blob connection string", iae);
                         throw new WebApplicationException("Invalid BlobStoreConnection", Response.Status.INTERNAL_SERVER_ERROR);
+                    } catch (WebApplicationException wae) {
+                        throw wae;
                     } catch (Exception e) {
                         LOG.error("Failed to initialize Blob container client", e);
                         throw new WebApplicationException("Blob init error", Response.Status.INTERNAL_SERVER_ERROR);
@@ -93,38 +79,18 @@ public class MediaResource {
         Instant start = Instant.now();
         ensureContainerClient();
         String id = Hash.of(contents);
-        long elapsed;
-        if (localMode) {
-            try {
-                java.nio.file.Path f = localDir.resolve(id);
-                Files.write(f, contents, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                // optionally store contentType as metadata file
-                if (contentType != null && !contentType.isBlank()) {
-                    Files.writeString(localDir.resolve(id + ".ct"), contentType, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                }
-                elapsed = Duration.between(start, Instant.now()).toMillis();
-                LOG.info("POST /rest/media stored locally in {} ms (id={})", elapsed, id);
-                return Response.ok("\"" + id + "\"").header("X-Backend-Time-ms", String.valueOf(elapsed)).build();
-            } catch (IOException e) {
-                LOG.error("Failed to write local media file", e);
-                throw new WebApplicationException("Local storage error", Response.Status.INTERNAL_SERVER_ERROR);
-            }
-        }
-        // Azure blob path
         BlobClient blob = containerClient.getBlobClient(id);
         String ct = (contentType != null && !contentType.isBlank()) ? contentType : "application/octet-stream";
         BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(ct);
-        java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(contents);
-        try {
+        try (java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(contents)) {
+            // overwrite existing blob
             blob.uploadWithResponse(inputStream, contents.length, null, headers, null, null, null, java.time.Duration.ofMinutes(1), Context.NONE);
-            elapsed = Duration.between(start, Instant.now()).toMillis();
+            long elapsed = Duration.between(start, Instant.now()).toMillis();
             LOG.info("POST /rest/media uploaded to blob in {} ms (id={})", elapsed, id);
             return Response.ok("\"" + id + "\"").header("X-Backend-Time-ms", String.valueOf(elapsed)).build();
         } catch (Exception e) {
             LOG.error("Failed to upload blob", e);
             throw new WebApplicationException("Blob upload error", Response.Status.INTERNAL_SERVER_ERROR);
-        } finally {
-            try { inputStream.close(); } catch (IOException ex) { LOG.debug("Failed to close upload input stream", ex); }
         }
     }
 
@@ -133,34 +99,18 @@ public class MediaResource {
     @Produces({ "image/*", "video/*" })
     public Response download(@PathParam("id") String id) {
         ensureContainerClient();
-        if (localMode) {
-            try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-                java.nio.file.Path f = localDir.resolve(id);
-                if (!Files.exists(f)) return Response.status(Response.Status.NOT_FOUND).build();
-                byte[] data = Files.readAllBytes(f);
-                String ct = null;
-                java.nio.file.Path ctFile = localDir.resolve(id + ".ct");
-                if (Files.exists(ctFile)) {
-                    ct = Files.readString(ctFile);
-                } else {
-                    ct = Files.probeContentType(f);
-                }
-                if (ct == null) ct = MediaType.APPLICATION_OCTET_STREAM;
-                return Response.ok(data, ct).build();
-            } catch (IOException e) {
-                LOG.debug("Local download failed for id {}: {}", id, e.getMessage(), e);
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            var blobClient = containerClient.getBlobClient(id);
+            if (!blobClient.exists()) {
                 return Response.status(Response.Status.NOT_FOUND).build();
             }
-        } else {
-            try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-                var blobClient = containerClient.getBlobClient(id);
-                blobClient.downloadStream(os);
-                String contentType = blobClient.getProperties().getContentType();
-                return Response.ok(os.toByteArray(), contentType).build();
-            } catch (Exception e) {
-                LOG.debug("Download failed for id {}: {}", id, e.getMessage(), e);
-                return Response.status(Response.Status.NOT_FOUND).build();
-            }
+            blobClient.downloadStream(os);
+            String contentType = blobClient.getProperties().getContentType();
+            if (contentType == null) contentType = MediaType.APPLICATION_OCTET_STREAM;
+            return Response.ok(os.toByteArray(), contentType).build();
+        } catch (Exception e) {
+            LOG.debug("Download failed for id {}: {}", id, e.getMessage(), e);
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
     }
 
@@ -168,32 +118,8 @@ public class MediaResource {
     @Produces(MediaType.APPLICATION_JSON)
     public List<String> list() {
         ensureContainerClient();
-        if (localMode) {
-            try {
-                List<String> names = new ArrayList<>();
-                try (DirectoryStream<java.nio.file.Path> ds = Files.newDirectoryStream(localDir, entry -> !entry.getFileName().toString().endsWith(".ct"))) {
-                    for (java.nio.file.Path p : ds) names.add(p.getFileName().toString());
-                }
-                return names;
-            } catch (IOException e) {
-                LOG.warn("Failed to list local media", e);
-                return List.of();
-            }
-        } else {
-            return containerClient.listBlobs().stream()
-                    .map(blob -> blob.getName())
-                    .collect(Collectors.toList());
-        }
+        return containerClient.listBlobs().stream()
+                .map(blob -> blob.getName())
+                .collect(Collectors.toList());
     }
-
-    // public Response uploadMedia() {
-    //     Instant start = Instant.now();
-    //     try {
-    //         Response resp = doActualUpload();
-    //         return resp;
-    //     } finally {
-    //         long ms = Duration.between(start, Instant.now()).toMillis();
-    //         LOG.info("POST /rest/media handled in {} ms", ms);
-    //     }
-    // }
 }

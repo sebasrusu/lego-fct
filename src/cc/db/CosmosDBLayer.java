@@ -252,8 +252,8 @@ public class CosmosDBLayer {
     // --- Auction Methods ---
     public AuctionDAO createAuction(AuctionDAO auction) {
         init();
-        auctions.createItem(auction);
-        return auction;
+        // return stored representation from Cosmos so created document has correct fields/ids
+        return auctions.createItem(auction).getItem();
     }
 
     public CosmosPagedIterable<AuctionDAO> listAuctions(int offset, int limit) {
