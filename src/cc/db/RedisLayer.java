@@ -79,16 +79,27 @@ public class RedisLayer {
 
     public void putSession(Session s) {
         if (!available || jedis == null) return;
-        try { jedis.setex(key(s.getSid()), ttlSeconds, mapper.writeValueAsString(s)); }
-        catch (Exception e) { System.err.println("Redis putSession failed: " + e.getMessage()); }
+        try {
+            String k = key(s.getSid());
+            String val = mapper.writeValueAsString(s);
+            jedis.setex(k, ttlSeconds, val);
+            System.err.println("Redis putSession OK sid=" + s.getSid() + " key=" + k);
+        } catch (Exception e) {
+            System.err.println("Redis putSession failed: " + e.getMessage());
+        }
     }
 
     public Session getSession(String sid) {
         if (!available || jedis == null) return null;
         try {
-            String json = jedis.get(key(sid));
+            String k = key(sid);
+            String json = jedis.get(k);
+            System.err.println("Redis getSession sid=" + sid + " key=" + k + " hit=" + (json != null));
             return json == null ? null : mapper.readValue(json, Session.class);
-        } catch (Exception e) { return null; }
+        } catch (Exception e) {
+            System.err.println("Redis getSession EX: " + e.getMessage());
+            return null;
+        }
     }
 
     public void deleteSession(String sid) {
