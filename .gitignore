@@ -58,3 +58,14 @@ images/
 * text=auto
 *.d.ts text eol=lf
 *.sh text eol=lf
+
+
+##pythonnnn
+
+.venv/
+venv/
+
+azurekeys-italynorth.props
+azurekeys.props
+azureprops-italynorth.sh
+.env.bak

@@ -5,6 +5,8 @@ import com.microsoft.azure.functions.*;
 import com.microsoft.azure.functions.annotation.*;
 import com.azure.cosmos.*;
 import com.azure.cosmos.models.*;
+import java.util.logging.Logger;
+import cc.db.CosmosDBLayer;
 
 public class CloseAuctionsFunction {
 
@@ -39,4 +41,26 @@ public class CloseAuctionsFunction {
 
         client.close();
     }
+
+        @FunctionName("CloseAuctions")
+    public void runCloseAuctions(
+            @TimerTrigger(name = "timer", schedule = "0 */5 * * * *") String timerInfo,
+            final ExecutionContext context){
+        Logger logger = context.getLogger();
+        logger.info("CloseAuctions function triggered: " + timerInfo);
+
+        CosmosDBLayer db = null;
+        try {
+            db = CosmosDBLayer.getInstance();
+            var expiredAuctions = db.listExpiredAuctions();
+            for (AuctionDAO auction : expiredAuctions) {
+                logger.info("Closing auction: " + auction.getId());
+                auction.setClosed(true);
+                db.updateAuction(auction);
+            }
+        } catch (Exception e) {
+            logger.severe("Error in CloseAuctions function: " + e.getMessage());
+        }
+    }
+    
 }

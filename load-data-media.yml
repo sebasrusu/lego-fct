@@ -1,0 +1,25 @@
+config:
+  target: 'https://cc2526.azurewebsites.net/rest'
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+  processor: "./test-utils.js"
+  phases:
+    - name: "Create users"
+      duration: 1
+      arrivalCount: 1
+
+scenarios:
+  - name: 'Create users'
+    weight: 1
+    flow:
+      - loop:
+          - post:
+              url: "/media"
+              headers:
+                Content-Type: image/jpeg
+                Accept: application/json
+              beforeRequest: "uploadImageBody"
+              capture:
+                regexp: "(.+)"
+                as: "imageId"

@@ -1,9 +1,12 @@
 package cc.srv.resources;
 
+import cc.data.auction.Auction;
+import cc.data.auction.AuctionDAO;
 import cc.data.user.User;
 import cc.data.user.UserDAO;
 import cc.db.CosmosDBLayer;
 import cc.utils.Hash;
+import com.azure.cosmos.CosmosException; // Adicione esta importação no topo do ficheiro
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -23,26 +26,23 @@ public class UserResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response createUser(User user) {
-        if (user.getName() == null || user.getName().isBlank() || user.getPwd() == null || user.getPwd().isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Name e password são obrigatórios.").build();
-        }
-
-        /*if (db.findUserByNickname(user.getNickname()) != null) {
-            return Response.status(Response.Status.CONFLICT)
-                    .entity("Nickname já existe.").build();
-        }*/
-
-        if (user.getId() == null || user.getId().isBlank())
+        if (user.getId() == null || user.getId().isEmpty()) {
             user.setId(UUID.randomUUID().toString());
-
-        user.setPwd(Hash.of(user.getPwd()));
-
-        UserDAO created = db.createUser(new UserDAO(user));
-
-        return Response.created(URI.create("/user/" + created.getId()))
-                .entity(created.toUser())
-                .build();
+        }
+        try {
+            user.setPwd(Hash.of(user.getPwd()));
+            UserDAO result = db.createUser(new UserDAO(user));
+            return Response.created(URI.create("/user/" + result.getId()))
+                    .entity(result.toUser())
+                    .build();
+        } catch (CosmosException e) {
+            // Se a exceção for por um item já existente (conflito)
+            if (e.getStatusCode() == 409) {
+                return Response.status(Response.Status.CONFLICT).entity("User already exists.").build();
+            }
+            // Para outras exceções do Cosmos DB, retorna um erro genérico
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
+        }
     }
 
     @PATCH
@@ -129,6 +129,15 @@ public class UserResource {
 
         db.deleteUser(id);
         return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/{id}/auctions")
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Auction> listAuctionsOfUser(@PathParam("id") String userId) {
+        return StreamSupport.stream(db.listAuctionsOfUser(userId).spliterator(), false)
+                .map(AuctionDAO::toAuction)
+                .collect(Collectors.toList());
     }
 
 }

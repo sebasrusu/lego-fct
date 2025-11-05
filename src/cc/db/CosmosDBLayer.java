@@ -142,7 +142,7 @@ public class CosmosDBLayer {
         if (u == null) {
             UserDAO deletedUser = new UserDAO();
             deletedUser.setId(deletedUserId);
-            deletedUser.setNickname("Deleted User");
+            //deletedUser.setNickname("Deleted User");
             deletedUser.setName("Deleted User");
             deletedUser.setPwd("");
             deletedUser.setPhotoId(null);
@@ -152,20 +152,12 @@ public class CosmosDBLayer {
     }
     public CosmosPagedIterable<CommentDAO> listCommentsByUser(String userId) {
         init();
-        return comments.queryItems(
-                "SELECT * FROM c WHERE c.userId = '" + userId + "'",
-                null,
-                CommentDAO.class
-        );
+        return comments.queryItems("SELECT * FROM c WHERE c.userId = '" + userId + "'", null, CommentDAO.class);
     }
 
     public CosmosPagedIterable<AuctionDAO> listAuctionsOfUser(String userId) {
         init();
-        return auctions.queryItems(
-                "SELECT * FROM c WHERE c.sellerId = '" + userId + "'",
-                null,
-                AuctionDAO.class
-        );
+        return auctions.queryItems("SELECT * FROM c WHERE c.sellerId = '" + userId + "'", null, AuctionDAO.class);
     }
 
     public CommentDAO updateComment(CommentDAO comment) {
@@ -240,16 +232,16 @@ public class CosmosDBLayer {
         return legosets.queryItems("SELECT * FROM c WHERE c.ownerId = '" + userId + "'", null, LegoSetDAO.class);
     }
 
-    public CosmosPagedIterable<LegoSetDAO> listMostRecentLegoSets() {
+    public CosmosPagedIterable<LegoSetDAO> listMostRecentLegoSets(int offset, int limit) {
         init();
-        return legosets.queryItems("SELECT * FROM c ORDER BY c.creationTime DESC OFFSET 0 LIMIT 20", null,
+        return legosets.queryItems("SELECT * FROM c ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit, null,
                 LegoSetDAO.class);
     }
 
     // --- Comment Methods ---
-    public CommentDAO createComment(CommentDAO comment) {
+    public void createComment(CommentDAO comment) {
         init();
-        return comments.createItem(comment).getItem();
+        comments.createItem(comment);
     }
 
     public CosmosPagedIterable<CommentDAO> listCommentsByLegoSet(String legoSetId) {
@@ -260,25 +252,23 @@ public class CosmosDBLayer {
     // --- Auction Methods ---
     public AuctionDAO createAuction(AuctionDAO auction) {
         init();
+        // return stored representation from Cosmos so created document has correct fields/ids
         return auctions.createItem(auction).getItem();
     }
 
-    public CosmosPagedIterable<AuctionDAO> listAuctions() {
+    public CosmosPagedIterable<AuctionDAO> listAuctions(int offset, int limit) {
         init();
-        return auctions.queryItems("SELECT * FROM c WHERE c.closeDate > " + System.currentTimeMillis(), null,
+        return auctions.queryItems("SELECT * FROM c WHERE c.closeDate > " + System.currentTimeMillis() + " ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit, null,
                 AuctionDAO.class);
     }
 
     public AuctionDAO getAuction(String auctionId) {
         init();
-        var results = auctions.queryItems(
-                "SELECT * FROM c WHERE c.id = '" + auctionId + "'",
-                null,
-                AuctionDAO.class
-        );
-        return results.iterator().hasNext()
-                ? results.iterator().next()
-                : null;
+        try {
+            return auctions.readItem(auctionId, new PartitionKey(auctionId), AuctionDAO.class).getItem();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public void addBidToAuction(String auctionId, Bid bid) {
@@ -286,6 +276,13 @@ public class CosmosDBLayer {
         auctions.patchItem(auctionId, new PartitionKey(auctionId),
                 CosmosPatchOperations.create().add("/bids/-", bid), AuctionDAO.class);
     }
+
+    public CosmosPagedIterable<AuctionDAO> listExpiredAuctions() {
+		init();
+		return auctions.queryItems(
+				"SELECT * FROM c WHERE c.closed != true AND c.closeDate < " + System.currentTimeMillis(),
+				null, AuctionDAO.class);
+	}
 
     public CosmosPagedIterable<AuctionDAO> searchAuctionForLegoSet(String legoSetId) {
         init();
