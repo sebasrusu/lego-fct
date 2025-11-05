@@ -47,14 +47,11 @@ public class AzureManagement {
 
     static final String MY_SUFFIX = "4204";
 
-    // use your existing resources (from portal)
     static final String AZURE_COSMOSDB_NAME = "cc2526-4204";
     static final String AZURE_COSMOSDB_DATABASE = "cc2526db4204";
     static final String[] BLOB_CONTAINERS = { "media", "images" };
 
-    // regions used by SDK operations (use Region.fromName to avoid missing enum issue)
     static final Region[] REGIONS = new Region[] { Region.fromName("italynorth") };
-    // Use a region-specific resource group name to avoid conflicts with an existing RG in another location
     static final String[] AZURE_RG_REGIONS = new String[] { "cc2526-italynorth" };
     static final String[] AZURE_APP_NAME = new String[] { "cc2526" };
     static final String[] AZURE_STORAGE_NAME = new String[] { "cc2526mediablob" };

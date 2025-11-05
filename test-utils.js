@@ -32,13 +32,14 @@ module.exports = {
   randomLoop70,
   randomLoop80,
   randomLoop90,
-  randomLoop95
-
+  randomLoop95,
+  logFailedResponse
 }
 
 
 const fs = require('fs')
 const { fakerEN, faker, de } = require('@faker-js/faker');
+const path = require('path');
 
 var imagesIds = []
 var images = []
@@ -51,66 +52,80 @@ function genProductCommentText(productName) {
 }
 
 // Auxiliary function to select an element from an array
-Array.prototype.sample = function(){
-	   return this[Math.floor(Math.random()*this.length)]
+Array.prototype.sample = function () {
+  return this[Math.floor(Math.random() * this.length)]
 }
 
 // Auxiliary function to select an element from an array
-Array.prototype.sampleSkewed = function(){
-	return this[randomSkewed(this.length)]
+Array.prototype.sampleSkewed = function () {
+  return this[randomSkewed(this.length)]
 }
 
 // Returns a random date
 function randomDate() {
-	let n = random(13);
-	if( n == 0)
-		return "12-2023";
-	if( n < 10)
-		return " " + n.toString()+ "-2024";
-	else
-		return n.toString()+ "-2024";
+  let n = random(13);
+  if (n == 0)
+    return "12-2023";
+  if (n < 10)
+    return " " + n.toString() + "-2024";
+  else
+    return n.toString() + "-2024";
 }
 
 
 // Returns a random value, from 0 to val
-function random( val){
-	return Math.floor(Math.random() * val)
+function random(val) {
+  return Math.floor(Math.random() * val)
 }
 
 // Returns a random value, from 0 to val
-function randomSkewed( val){
-	let beta = Math.pow(Math.sin(Math.random()*Math.PI/2),2)
-	let beta_left = (beta < 0.5) ? 2*beta : 2*(1-beta);
-	return Math.floor(beta_left * val)
+function randomSkewed(val) {
+  let beta = Math.pow(Math.sin(Math.random() * Math.PI / 2), 2)
+  let beta_left = (beta < 0.5) ? 2 * beta : 2 * (1 - beta);
+  return Math.floor(beta_left * val)
 }
 
 // Loads data about images from disk
 function loadData() {
-	var i
-	var basefile
-	if( fs.existsSync( '/images')) 
-		basefile = '/images/lego'
-	else
-		basefile =  'images/lego'	
-	for( i = 1; i <= 60 ; i++) {
-		var img  = fs.readFileSync(basefile + i + '.jpg')
-		images.push( img)
-	}
-  var str;
-  if( fs.existsSync('users.data')) {
-    str = fs.readFileSync('users.data','utf8')
-    users = JSON.parse(str)
-  } 
+  const path = require('path');
+  const root = path.resolve(__dirname);
+  // procurar imagens em project_root/images
+  const candidates = [
+    path.join(root, 'images'),
+    path.join(process.cwd(), 'images'),
+    path.join(root, '..', 'images')
+  ];
+  let basefileDir = null;
+  for (const c of candidates) {
+    if (fs.existsSync(c)) { basefileDir = c; break; }
+  }
+  if (!basefileDir) {
+    throw new Error("Pasta 'images' não encontrada no projecto. Cria images/ com ficheiros lego1.jpg ...");
+  }
+  for (let i = 1; i <= 60; i++) {
+    const filePath = path.join(basefileDir, `lego${i}.jpg`);
+    if (fs.existsSync(filePath)) {
+      const img = fs.readFileSync(filePath);
+      images.push(img);
+    } else {
+      // parar ao primeiro ausente — mantém robusto
+      break;
+    }
+  }
+  // load users data if exists
+  if (fs.existsSync(path.join(root, 'users.data'))) {
+    const str = fs.readFileSync(path.join(root, 'users.data'), 'utf8');
+    users = JSON.parse(str);
+  }
 }
-
 loadData();
 
 /**
  * Sets the body to an image, when using images.
  */
 function uploadImageBody(requestParams, context, ee, next) {
-	requestParams.body = images.sample()
-	return next()
+  requestParams.body = images.sample()
+  return next()
 }
 
 /**
@@ -118,46 +133,46 @@ function uploadImageBody(requestParams, context, ee, next) {
  * Update the next image to read.
  */
 function processUploadReply(requestParams, response, context, ee, next) {
-	if( typeof response.body !== 'undefined' && response.body.length > 0) {
-		imagesIds.push(response.body)
-	}
-    return next()
+  if (typeof response.body !== 'undefined' && response.body.length > 0) {
+    imagesIds.push(response.body)
+  }
+  return next()
 }
 
 /**
  * Select an image to download.
  */
 function selectImageToDownload(context, events, done) {
-	if( imagesIds.length > 0) {
-		context.vars.imageId = imagesIds.sample()
-	} else {
-		delete context.vars.imageId
-	}
-	return done()
+  if (imagesIds.length > 0) {
+    context.vars.imageId = imagesIds.sample()
+  } else {
+    delete context.vars.imageId
+  }
+  return done()
 }
 
 /**
  * Select an image to download.
  */
 function selectUserIds(context, events, done) {
-	if( userIds.length > 0) {
-		context.vars.userId = userIds.sample()
-	} else {
-		delete context.vars.userId
-	}
-	return done()
+  if (userIds.length > 0) {
+    context.vars.userId = userIds.sample()
+  } else {
+    delete context.vars.userId
+  }
+  return done()
 }
 
 /**
  * Generate data for a new user using Faker
  */
 function genNewUser(context, events, done) {
-	const first = `${faker.person.firstName()}`
-	const last = `${faker.person.lastName()}`
-	context.vars.uId = first + "." + last
-	context.vars.uName = first + " " + last
-	context.vars.uPwd = `${faker.internet.password()}`
-	return done()
+  const first = `${faker.person.firstName()}`
+  const last = `${faker.person.lastName()}`
+  context.vars.uId = first + "." + last
+  context.vars.uName = first + " " + last
+  context.vars.uPwd = `${faker.internet.password()}`
+  return done()
 }
 
 
@@ -165,53 +180,58 @@ function genNewUser(context, events, done) {
  * Process reply for of new users to store the id on file
  */
 function genNewUserReply(requestParams, response, context, ee, next) {
-	if( response.statusCode >= 200 && response.statusCode < 300 && response.body.length > 0)  {
-		let u = JSON.parse( response.body)
-		users.push(u)
-		fs.writeFileSync('users.data', JSON.stringify(users));
-	}
-    return next()
+  if (response.statusCode >= 200 && response.statusCode < 300 && response.body.length > 0) {
+    let u = JSON.parse(response.body)
+    users.push(u)
+    fs.writeFileSync('users.data', JSON.stringify(users));
+  }
+  return next()
 }
 
 /**
  * Generate data for a new legoset using Faker
  */
 function genNewLegoSet(context, events, done) {
-    context.vars.lsName = `${faker.commerce.productName()}`;
-    context.vars.lsDescription = `${faker.commerce.productDescription()}`;
-    context.vars.lsCodeNumber = `${faker.string.alphanumeric(8)}`; // Adiciona um codeNumber
-    return done();
+  context.vars.lsName = `${faker.commerce.productName()}`;
+  context.vars.lsDescription = `${faker.commerce.productDescription()}`;
+  context.vars.lsCodeNumber = `${faker.string.alphanumeric(8)}`; // Adiciona um codeNumber
+  return done();
 }
 
 /**
  * Generate data for a new legoset comment using Faker
  */
 function genProductComment(context, events, done) {
-	selectUserRaw(context)
-	context.vars.cmtText = genProductCommentText(context.vars.lsName)
-	return done()
+  selectUserRaw(context)
+  context.vars.cmtText = genProductCommentText(context.vars.lsName)
+  return done()
 }
 
 /**
  * Generate data for a new legoset comment when looping
  */
 function genProductCommentLoop(context, events, done) {
-	context.vars.cmtText = genProductCommentText(context.vars.$loopElement.name)
-	return done()
+  context.vars.cmtText = genProductCommentText(context.vars.$loopElement.name)
+  return done()
 }
 
 /**
  * Generate data for a new auction using Faker
  */
 function genNewOldAuction(context, events, done) {
-	selectUserRaw(context)
-	context.vars.aucStartingPrice = random(50) + 10;
-	context.vars.aucLastBid = context.vars.aucStartingPrice - 1;
-	var d = new Date();
-//	d.setTime(Date.now() - random( 15 * 24 * 60 * 60 * 1000));
-	d.setTime(Date.now() + random(5 * 60 * 1000));
-	context.vars.aucEndDate = d.toISOString();
-	return done()
+  context.vars.aucStartingPrice = Math.floor(Math.random() * 100) + 10;
+  context.vars.aucLastBid = context.vars.aucStartingPrice - 1;
+  // ensure closeDate is in the future (e.g. +5..+30 minutes) to be listed by server
+  const now = Date.now();
+  const plusMs = (5 + Math.floor(Math.random() * 26)) * 60 * 1000; // 5..30 minutes
+  const d = new Date(now + plusMs);
+  context.vars.aucEndDate = d.toISOString();
+  context.vars.closeDate = now + plusMs; // epoch ms expected by server
+  context.vars.basePrice = context.vars.aucStartingPrice;
+  // keep seller/legoSet ids if already selected by scenario
+  if (!context.vars.sellerId && context.vars.uId) context.vars.sellerId = context.vars.uId;
+  if (!context.vars.legoSetId && context.vars.lsId) context.vars.legoSetId = context.vars.lsId;
+  return done();
 }
 
 
@@ -219,9 +239,12 @@ function genNewOldAuction(context, events, done) {
  * Generate data for a new bid using Faker
  */
 function genNewOldBid(context, events, done) {
-	selectUserRaw(context)
-	context.vars.aucLastBid = context.vars.aucLastBid + 1 + random(3);
-	return done()
+  selectUserRaw(context)
+  context.vars.aucLastBid = context.vars.aucLastBid + 1 + random(3);
+  // Compatibilidade: preencher payload usado pelo servidor
+  context.vars.amount = context.vars.aucLastBid;
+  context.vars.timestamp = Date.now();
+  return done()
 }
 
 
@@ -229,24 +252,24 @@ function genNewOldBid(context, events, done) {
  * Select user
  */
 function selectUserRaw(context) {
-	if( users.length > 0) {
-		let user = users.sample()
-		context.vars.uId = user.id
-		context.vars.uPwd = user.pwd
-	} else {
-		delete context.vars.uId
-		delete context.vars.uPwd
-	}
+  if (users.length > 0) {
+    let user = users.sample()
+    context.vars.uId = user.id
+    context.vars.uPwd = user.pwd
+  } else {
+    delete context.vars.uId
+    delete context.vars.uPwd
+  }
 }
 function selectUser(context, events, done) {
-	selectUserRaw(context)
-	return done()
+  selectUserRaw(context)
+  return done()
 }
 function selectUserMain(context, events, done) {
-	selectUserRaw(context)
+  selectUserRaw(context)
   context.vars.uIdMain = context.vars.uId
   context.vars.uPwdMain = context.vars.uPwd
-	return done()
+  return done()
 }
 
 
@@ -254,18 +277,18 @@ function selectUserMain(context, events, done) {
  * Select user
  */
 function selectUserSkewedRaw(context) {
-	if( users.length > 0) {
-		let user = users.sampleSkewed()
-		context.vars.uId = user.id
-		context.vars.uPwd = user.pwd
-	} else {
-		delete context.vars.uId
-		delete context.vars.uPwd
-	}
+  if (users.length > 0) {
+    let user = users.sampleSkewed()
+    context.vars.uId = user.id
+    context.vars.uPwd = user.pwd
+  } else {
+    delete context.vars.uId
+    delete context.vars.uPwd
+  }
 }
 function selectUserSkewed(context, events, done) {
-	selectUserSkewedRaw(context)
-	return done()
+  selectUserSkewedRaw(context)
+  return done()
 }
 
 /**
@@ -273,28 +296,28 @@ function selectUserSkewed(context, events, done) {
  * assuming: lego sets context.vars.legoSetLst
  */
 function selectLegoSet(context, events, done) {
-	if( typeof context.vars.legoSetLst !== 'undefined' && 
-			context.vars.legoSetLst.constructor == Array && context.vars.legoSetLst.length > 0) {
-		let legoset = context.vars.legoSetLst.sample()
-		context.vars.lsId = legoset.id;
-		context.vars.lsName = legoset.name;
-	} else
-		delete context.vars.lsId
-	return done()
+  if (typeof context.vars.legoSetLst !== 'undefined' &&
+    context.vars.legoSetLst.constructor == Array && context.vars.legoSetLst.length > 0) {
+    let legoset = context.vars.legoSetLst.sample()
+    context.vars.lsId = legoset.id;
+    context.vars.lsName = legoset.name;
+  } else
+    delete context.vars.lsId
+  return done()
 }
 
 /**
  * Select legoset from userInfo
  */
 function selectLegoSetFromUserInfo(context, events, done) {
-	if( typeof context.vars.userInfo !== 'undefined' &&
-    typeof context.vars.userInfo.legoIds !== 'undefined' && 
-			context.vars.userInfo.legoIds.constructor == Array && context.vars.userInfo.legoIds.length > 0) {
-		let legosetId = context.vars.userInfo.legoIds.sample()
-		context.vars.lsId = legosetId;
-	} else
-		delete context.vars.lsId
-	return done()
+  if (typeof context.vars.userInfo !== 'undefined' &&
+    typeof context.vars.userInfo.legoIds !== 'undefined' &&
+    context.vars.userInfo.legoIds.constructor == Array && context.vars.userInfo.legoIds.length > 0) {
+    let legosetId = context.vars.userInfo.legoIds.sample()
+    context.vars.lsId = legosetId;
+  } else
+    delete context.vars.lsId
+  return done()
 }
 
 
@@ -303,18 +326,18 @@ function selectLegoSetFromUserInfo(context, events, done) {
  * assuming: auctions context.vars.auctionLst
  */
 function selectAuction(context, events, done) {
-	if( typeof context.vars.auctionLst !== 'undefined' && 
-			context.vars.auctionLst.constructor == Array && context.vars.auctionLst.length > 0) {
-		let auction = context.vars.auctionLst.sample()
-		context.vars.auctionId = auction.id;
-		context.vars.seller = auction.seller;
-    if( typeof auction.highestBid !== 'undefined' && typeof auction.highestBid.amount !== 'undefined')
-  	  context.vars.aucLastBid = auction.highestBid.amount + 1 + random(3);
+  if (typeof context.vars.auctionLst !== 'undefined' &&
+    context.vars.auctionLst.constructor == Array && context.vars.auctionLst.length > 0) {
+    let auction = context.vars.auctionLst.sample()
+    context.vars.auctionId = auction.id;
+    context.vars.seller = auction.seller;
+    if (typeof auction.highestBid !== 'undefined' && typeof auction.highestBid.amount !== 'undefined')
+      context.vars.aucLastBid = auction.highestBid.amount + 1 + random(3);
     else
       context.vars.aucLastBid = auction.startingPrice + 1 + random(3);
-	} else
-		delete context.vars.auctionId
-	return done()
+  } else
+    delete context.vars.auctionId
+  return done()
 }
 
 
@@ -336,36 +359,36 @@ function decideNextAction(context, events, done) {
   let rnd = Math.random();
   context.vars.stLegoSets = 0;
   context.vars.stAuctions = 0;
-	context.vars.nextAction = 0;
-	context.vars.afterNextAction = 0;
-	if( rnd < 0.4) {
-		context.vars.nextAction = 0;
-    if( rnd < 0.04)
+  context.vars.nextAction = 0;
+  context.vars.afterNextAction = 0;
+  if (rnd < 0.4) {
+    context.vars.nextAction = 0;
+    if (rnd < 0.04)
       context.vars.afterNextAction = 10;
-    else if( rnd < 0.06)
+    else if (rnd < 0.06)
       context.vars.afterNextAction = 11;
-    else if( rnd < 0.08)
+    else if (rnd < 0.08)
       context.vars.afterNextAction = 12;
-    else if( rnd < 0.18)
+    else if (rnd < 0.18)
       context.vars.afterNextAction = 14;
-	} else if( rnd < 0.5) {
-		context.vars.nextAction = 1; 
+  } else if (rnd < 0.5) {
+    context.vars.nextAction = 1;
     context.vars.stLegoSets = context.vars.stLegoSets + 20;
-    if( rnd < 0.51)
+    if (rnd < 0.51)
       context.vars.afterNextAction = 10;
-    else if( rnd < 0.61)
+    else if (rnd < 0.61)
       context.vars.afterNextAction = 14;
-	} else if( rnd < 0.6) {
+  } else if (rnd < 0.6) {
     context.vars.nextAction = 2;
     context.vars.stAuctions = context.vars.stAuctions + 20;
-    if( rnd < 0.61)
+    if (rnd < 0.61)
       context.vars.afterNextAction = 11;
-  } else if( rnd < 0.79) {
+  } else if (rnd < 0.79) {
     context.vars.nextAction = 3;
-    if( rnd < 0.61)
+    if (rnd < 0.61)
       context.vars.afterNextAction = 13;
     context.vars.uId = context.vars.uIdMain;
-  } else if( rnd < 0.99) {
+  } else if (rnd < 0.99) {
     context.vars.nextAction = 4;
     selectUserRaw(context);
   } else
@@ -468,6 +491,24 @@ function randomLoop90(context, next) {
 function randomLoop95(context, next) {
   const continueLooping = Math.random() < 0.95
   return next(continueLooping);
+}
+
+function logFailedResponse(requestParams, response, context, ee, next) {
+  try {
+    if (response && response.statusCode && response.statusCode >= 400) {
+      const debug = {
+        time: new Date().toISOString(),
+        url: (requestParams.url || requestParams.fullUrl || requestParams.uri || ''),
+        method: requestParams.method || 'POST',
+        status: response.statusCode,
+        reqBody: requestParams.json ? JSON.stringify(requestParams.json) : (requestParams.body || ''),
+        resBody: response.body || ''
+      };
+      const fp = path.resolve(process.cwd(), 'results', 'artillery_failures.log');
+      fs.appendFileSync(fp, JSON.stringify(debug) + "\n");
+    }
+  } catch (e) { }
+  return next();
 }
 
 const legoCommentsTemplates = [
