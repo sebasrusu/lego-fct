@@ -30,6 +30,7 @@ public class UserResource {
             user.setId(UUID.randomUUID().toString());
         }
         try {
+            user.setPwd(Hash.of(user.getPwd()));
             UserDAO result = db.createUser(new UserDAO(user));
             return Response.created(URI.create("/user/" + result.getId()))
                     .entity(result.toUser())
