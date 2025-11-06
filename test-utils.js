@@ -33,7 +33,8 @@ module.exports = {
   randomLoop80,
   randomLoop90,
   randomLoop95,
-  logFailedResponse
+  logFailedResponse,
+  debugRequest   // <-- added
 }
 
 
@@ -113,9 +114,19 @@ function loadData() {
     }
   }
   // load users data if exists
-  if (fs.existsSync(path.join(root, 'users.data'))) {
-    const str = fs.readFileSync(path.join(root, 'users.data'), 'utf8');
-    users = JSON.parse(str);
+  const udPath = path.join(root, 'users.data');
+  if (fs.existsSync(udPath)) {
+    const str = fs.readFileSync(udPath, 'utf8').trim();
+    if (str.length > 0) {
+      try {
+        users = JSON.parse(str);
+      } catch (e) {
+        console.warn("Warning: failed to parse users.data — ignoring file. Error:", e.message);
+        users = [];
+      }
+    } else {
+      users = [];
+    }
   }
 }
 loadData();
@@ -155,8 +166,8 @@ function selectImageToDownload(context, events, done) {
  * Select an image to download.
  */
 function selectUserIds(context, events, done) {
-  if (userIds.length > 0) {
-    context.vars.userId = userIds.sample()
+  if (users.length > 0) {
+    context.vars.userId = users.sample().id
   } else {
     delete context.vars.userId
   }
@@ -180,10 +191,30 @@ function genNewUser(context, events, done) {
  * Process reply for of new users to store the id on file
  */
 function genNewUserReply(requestParams, response, context, ee, next) {
-  if (response.statusCode >= 200 && response.statusCode < 300 && response.body.length > 0) {
-    let u = JSON.parse(response.body)
-    users.push(u)
-    fs.writeFileSync('users.data', JSON.stringify(users));
+  try {
+    if (response && response.statusCode >= 200 && response.statusCode < 300) {
+      let created = null;
+      if (response.body && response.body.length > 0) {
+        try { created = JSON.parse(response.body); } catch (e) { created = null; }
+      }
+      // Guardar a password que gerámos localmente (plain text) para poder autenticar depois.
+      const stored = {
+        id: (created && (created.id || created.userId)) || context.vars.uId || null,
+        // guardar sempre a password plain-text gerada localmente
+        pwd: (context.vars && context.vars.uPwd) || null,
+        name: (created && created.name) || context.vars.uName || null,
+        photoId: (created && created.photoId) || context.vars.imageId || null,
+        legoIds: (created && created.legoIds) || []
+      };
+      if (stored.id) {
+        users.push(stored);
+        try { fs.writeFileSync('users.data', JSON.stringify(users)); } catch (e) { console.warn("Could not write users.data:", e.message); }
+      } else {
+        console.warn("genNewUserReply: no id available, skipping storing user", stored);
+      }
+    }
+  } catch (e) {
+    console.warn("genNewUserReply error:", e.message);
   }
   return next()
 }
@@ -508,6 +539,34 @@ function logFailedResponse(requestParams, response, context, ee, next) {
       fs.appendFileSync(fp, JSON.stringify(debug) + "\n");
     }
   } catch (e) { }
+  return next();
+}
+
+function debugRequest(requestParams, context, ee, next) {
+  try {
+    const url = (requestParams && (requestParams.url || requestParams.uri || requestParams.fullUrl)) || '';
+    const method = (requestParams && requestParams.method) || 'POST';
+    // payload can be in json, body or form
+    const payload = requestParams.json || requestParams.body || requestParams.form || {};
+    if (url.includes('/rest/user/auth')) {
+      const missingUser = (payload.user === undefined || payload.user === null || payload.user === '');
+      const missingPwd = (payload.pwd === undefined || payload.pwd === null || payload.pwd === '');
+      if (missingUser || missingPwd) {
+        const log = {
+          time: new Date().toISOString(),
+          url,
+          method,
+          payload,
+          missing: { user: missingUser, pwd: missingPwd },
+          contextVars: { uId: context.vars && context.vars.uId, uPwd: context.vars && context.vars.uPwd }
+        };
+        const outDir = path.resolve(process.cwd(), 'results');
+        try { if (!fs.existsSync(outDir)) fs.mkdirSync(outDir); } catch (e) { }
+        const fp = path.join(outDir, 'artillery_malformed_requests.log');
+        try { fs.appendFileSync(fp, JSON.stringify(log) + "\n"); } catch (e) { /* best-effort */ }
+      }
+    }
+  } catch (e) { /* ignore debug failures */ }
   return next();
 }
 

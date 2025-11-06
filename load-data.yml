@@ -40,6 +40,7 @@ scenarios:
             url: "/rest/user/auth"
             headers:
               Content-Type: application/json
+            beforeRequest: "debugRequest"
             json:
               user: "{{ uId }}"
               pwd: "{{ uPwd }}"
@@ -76,6 +77,7 @@ scenarios:
               url: "/rest/user/auth"
               headers:
                 Content-Type: application/json
+              beforeRequest: "debugRequest"
               json:
                 user: "{{ uId }}"
                 pwd: "{{ uPwd }}"
@@ -93,6 +95,7 @@ scenarios:
               url: "/rest/user/auth"
               headers:
                 Content-Type: application/json
+              beforeRequest: "debugRequest"
               json:
                 user: "{{ uId }}"
                 pwd: "{{ uPwd }}"
@@ -119,6 +122,7 @@ scenarios:
               url: "/rest/user/auth"
               headers:
                 Content-Type: application/json
+              beforeRequest: "debugRequest"
               json:
                 user: "{{ uId }}"
                 pwd: "{{ uPwd }}"
@@ -143,11 +147,12 @@ scenarios:
                 json: "$.id"
                 as: "aucId"         # capture the auction id to be used in bid creation creation
           - loop:
-            - function: "genNewOldBid" 
+            - function: "genNewOldBid"
             - post:
                 url: "/rest/user/auth"
                 headers:
                   Content-Type: application/json
+                beforeRequest: "debugRequest"
                 json:
                   user: "{{ uId }}"
                   pwd: "{{ uPwd }}"
@@ -159,7 +164,8 @@ scenarios:
                 json:
                   auctionId: "{{ aucId }}"
                   userId: "{{ uId }}"
-                  amount: "{{ aucLastBid }}"
+                  amount: "{{ amount }}"
+                  timestamp: "{{ timestamp }}"
             whileTrue: "randomLoop90"
           whileTrue: "randomLoop70"
         count: 500
