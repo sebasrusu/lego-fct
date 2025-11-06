@@ -14,8 +14,11 @@ import com.azure.cosmos.CosmosDatabase;
 import com.azure.cosmos.models.*;
 import com.azure.cosmos.util.CosmosPagedIterable;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Logger;
 
 public class CosmosDBLayer {
     // try environment first, then fallback to azurekeys.props
@@ -49,6 +52,9 @@ public class CosmosDBLayer {
     private CosmosContainer legosets;
     private CosmosContainer comments;
     private CosmosContainer auctions;
+
+    // logger
+    private static final Logger LOG = Logger.getLogger(CosmosDBLayer.class.getName());
 
     private CosmosDBLayer(CosmosClient client) {
         this.client = client;
@@ -252,25 +258,64 @@ public class CosmosDBLayer {
     // --- Auction Methods ---
     public AuctionDAO createAuction(AuctionDAO auction) {
         init();
-        // return stored representation from Cosmos so created document has correct fields/ids
-        return auctions.createItem(auction).getItem();
-    }
-
-    public CosmosPagedIterable<AuctionDAO> listAuctions(int offset, int limit) {
-        init();
-        return auctions.queryItems("SELECT * FROM c WHERE c.closeDate > " + System.currentTimeMillis() + " ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit, null,
-                AuctionDAO.class);
-    }
-
-    public AuctionDAO getAuction(String auctionId) {
-        init();
         try {
-            return auctions.readItem(auctionId, new PartitionKey(auctionId), AuctionDAO.class).getItem();
+            LOG.info("createAuction: upserting auction id=" + auction.getId() + " legoSetId=" + auction.getLegoSetId() + " sellerId=" + auction.getSellerId());
+            CosmosItemResponse<AuctionDAO> resp = auctions.upsertItem(auction);
+            LOG.info("createAuction: upserted id=" + resp.getItem().getId() + " statusCode=" + resp.getStatusCode() + " _rid=" + resp.getItem().get_rid());
+            return resp.getItem();
         } catch (Exception e) {
-            return null;
+            LOG.severe("createAuction: err=" + e.getMessage());
+            throw e;
         }
     }
 
+    // return ALL auctions (no date filter)
+    public CosmosPagedIterable<AuctionDAO> listAuctions(int offset, int limit) {
+        init();
+        String sql = "SELECT * FROM c ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit;
+        LOG.info("listAuctions: sql=" + sql);
+        return auctions.queryItems(sql, new CosmosQueryRequestOptions(), AuctionDAO.class);
+    }
+
+    // return open auctions: not closed and closeDate > now
+    public CosmosPagedIterable<AuctionDAO> listOpenAuctions(int offset, int limit) {
+        init();
+        long now = System.currentTimeMillis();
+        String sql = "SELECT * FROM c WHERE (c.closed != true OR IS_NULL(c.closed)) AND c.closeDate > " + now
+                + " ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit;
+        LOG.info("listOpenAuctions: sql=" + sql);
+        return auctions.queryItems(sql, new CosmosQueryRequestOptions(), AuctionDAO.class);
+    }
+
+    // return closed/past auctions: closed == true OR closeDate <= now
+    public CosmosPagedIterable<AuctionDAO> listClosedAuctions(int offset, int limit) {
+        init();
+        long now = System.currentTimeMillis();
+        String sql = "SELECT * FROM c WHERE (c.closed = true) OR (c.closeDate <= " + now + ") ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit;
+        LOG.info("listClosedAuctions: sql=" + sql);
+        return auctions.queryItems(sql, new CosmosQueryRequestOptions(), AuctionDAO.class);
+    }
+
+    public AuctionDAO getAuction(String id) {
+        init();
+        try {
+            LOG.info("getAuction: id=" + id + " (searching cross-partition)");
+            // avoid SqlParameterList (not present); use simple query string
+            String sql = "SELECT * FROM c WHERE c.id = '" + id + "'";
+            CosmosQueryRequestOptions opts = new CosmosQueryRequestOptions();
+            opts.setQueryMetricsEnabled(false);
+            CosmosPagedIterable<AuctionDAO> results = auctions.queryItems(sql, opts, AuctionDAO.class);
+            for (AuctionDAO a : results) {
+                LOG.info("getAuction: found auction id=" + a.getId() + " sellerId=" + a.getSellerId() + " _rid=" + a.get_rid());
+                return a;
+            }
+            LOG.info("getAuction: not found id=" + id);
+        } catch (Exception e) {
+            LOG.warning("getAuction: err=" + e.getMessage());
+        }
+        return null;
+    }
+    
     public void addBidToAuction(String auctionId, Bid bid) {
         init();
         auctions.patchItem(auctionId, new PartitionKey(auctionId),
@@ -278,11 +323,11 @@ public class CosmosDBLayer {
     }
 
     public CosmosPagedIterable<AuctionDAO> listExpiredAuctions() {
-		init();
-		return auctions.queryItems(
-				"SELECT * FROM c WHERE c.closed != true AND c.closeDate < " + System.currentTimeMillis(),
-				null, AuctionDAO.class);
-	}
+        init();
+        return auctions.queryItems(
+                "SELECT * FROM c WHERE c.closed != true AND c.closeDate < " + System.currentTimeMillis(),
+                null, AuctionDAO.class);
+    }
 
     public CosmosPagedIterable<AuctionDAO> searchAuctionForLegoSet(String legoSetId) {
         init();
