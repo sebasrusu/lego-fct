@@ -139,5 +139,4 @@ public class UserResource {
                 .map(AuctionDAO::toAuction)
                 .collect(Collectors.toList());
     }
-
 }
