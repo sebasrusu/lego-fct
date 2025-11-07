@@ -4,12 +4,14 @@ import cc.data.comment.Comment;
 import cc.data.comment.CommentDAO;
 import cc.data.lego.LegoSet;
 import cc.data.lego.LegoSetDAO;
+import cc.data.user.UserDAO;
 import cc.db.CosmosDBLayer;
 import com.azure.cosmos.CosmosException;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -30,8 +32,29 @@ public class LegoSetResource {
         if (legoSet.getOwnerId() == null || legoSet.getOwnerId().isEmpty()) {
             return Response.status(Response.Status.BAD_REQUEST).entity("LegoSet must have an ownerId.").build();
         }
+
+        //garantir que o owner existe (se id está presente na tablea dos users)
+        UserDAO owner = db.getUser(legoSet.getOwnerId());
+        if (owner == null)
+            return Response.status(Response.Status.BAD_REQUEST).entity("User does not exist.").build();
+
+
         try {
             LegoSetDAO result = db.createLegoSet(new LegoSetDAO(legoSet));
+
+            String[] legoIds = owner.getLegoIds();
+            if (legoIds == null) legoIds = new String[0];
+
+            // evitar duplicados
+            boolean exists = Arrays.asList(legoIds).contains(result.getId());
+            if (!exists) {
+                String[] updated = Arrays.copyOf(legoIds, legoIds.length + 1);
+                updated[legoIds.length] = result.getId();
+                legoIds = updated;
+                owner.setLegoIds(legoIds);
+                db.updateUser(owner);
+            }
+
             return Response.created(URI.create("/legoset/" + result.getId()))
                     .entity(result.toLegoSet())
                     .build();
@@ -40,6 +63,8 @@ public class LegoSetResource {
                 return Response.status(Response.Status.CONFLICT).entity("LegoSet already exists.").build();
             }
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
+        } catch (Exception e) {
+            return Response.serverError().entity("Erro ao criar LegoSet: " + e.getMessage()).build();
         }
     }
 
