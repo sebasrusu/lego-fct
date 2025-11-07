@@ -22,6 +22,7 @@ public class CloseAuctionsFunction {
             for (AuctionDAO auction : expiredAuctions) {
                 logger.info("Closing auction: " + auction.getId());
                 auction.setClosed(true);
+                // persist change
                 db.updateAuction(auction);
             }
         } catch (Exception e) {

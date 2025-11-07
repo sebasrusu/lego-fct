@@ -300,7 +300,6 @@ public class CosmosDBLayer {
         init();
         try {
             LOG.info("getAuction: id=" + id + " (searching cross-partition)");
-            // avoid SqlParameterList (not present); use simple query string
             String sql = "SELECT * FROM c WHERE c.id = '" + id + "'";
             CosmosQueryRequestOptions opts = new CosmosQueryRequestOptions();
             opts.setQueryMetricsEnabled(false);
@@ -318,8 +317,38 @@ public class CosmosDBLayer {
     
     public void addBidToAuction(String auctionId, Bid bid) {
         init();
-        auctions.patchItem(auctionId, new PartitionKey(auctionId),
-                CosmosPatchOperations.create().add("/bids/-", bid), AuctionDAO.class);
+        AuctionDAO auction = getAuction(auctionId);
+        if (auction == null) {
+            throw new IllegalArgumentException("Auction not found: " + auctionId);
+        }
+
+        try {
+            String pkPath = auctions.read().getProperties().getPartitionKeyDefinition().getPaths().get(0);
+            String pkField = pkPath.startsWith("/") ? pkPath.substring(1) : pkPath;
+
+            String pkValue = auction.getId();
+            if ("sellerId".equals(pkField)) {
+                pkValue = auction.getSellerId() == null ? auction.getId() : auction.getSellerId();
+            } else if ("legoSetId".equals(pkField)) {
+                pkValue = auction.getLegoSetId() == null ? auction.getId() : auction.getLegoSetId();
+            } else if ("id".equals(pkField)) {
+                pkValue = auction.getId();
+            } else {
+                try {
+                    var f = AuctionDAO.class.getDeclaredField(pkField);
+                    f.setAccessible(true);
+                    Object val = f.get(auction);
+                    if (val != null) pkValue = val.toString();
+                } catch (Exception ignore) { }
+            }
+
+            LOG.info("addBidToAuction: auctionId=" + auctionId + " using partitionKeyPath=" + pkPath + " pkValue=" + pkValue);
+            auctions.patchItem(auctionId, new PartitionKey(pkValue),
+                    CosmosPatchOperations.create().add("/bids/-", bid), AuctionDAO.class);
+        } catch (Exception e) {
+            LOG.severe("addBidToAuction: failed to patch auctionId=" + auctionId + " err=" + e.getMessage());
+            throw e;
+        }
     }
 
     public CosmosPagedIterable<AuctionDAO> listExpiredAuctions() {

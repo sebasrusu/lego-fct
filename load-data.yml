@@ -140,12 +140,12 @@ scenarios:
                 Accept: application/json
               json:
                 legoSetId: "{{ lsId }}"
-                seller: "{{ uId }}"
-                startingPrice: "{{ aucStartingPrice }}"
-                endDate: "{{ aucEndDate }}"
+                sellerId: "{{ uId }}"          # changed from 'seller'
+                basePrice: {{ basePrice }}     # changed from 'startingPrice' -> numeric
+                closeDate: {{ closeDate }}     # changed from 'endDate' -> numeric epoch ms
               capture: 
                 json: "$.id"
-                as: "aucId"         # capture the auction id to be used in bid creation creation
+                as: "aucId"         # capture the auction id to be used in bid creation
           - loop:
             - function: "genNewOldBid"
             - post:
@@ -162,10 +162,9 @@ scenarios:
                   Content-Type: application/json
                   Accept: application/json
                 json:
-                  auctionId: "{{ aucId }}"
-                  userId: "{{ uId }}"
-                  amount: "{{ amount }}"
-                  timestamp: "{{ timestamp }}"
+                  userId: "{{ uId }}"         # send only fields server expects
+                  amount: {{ amount }}
+                  timestamp: {{ timestamp }}
             whileTrue: "randomLoop90"
           whileTrue: "randomLoop70"
         count: 500

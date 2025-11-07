@@ -124,6 +124,9 @@ public class AuctionResource {
             return Response.status(Response.Status.BAD_REQUEST).entity("Amount must be positive").build();
         }
         long now = System.currentTimeMillis();
+        LOG.info("placeBid for auctionId=" + auctionId + " auction.closed=" + auction.isClosed()
+                + " closeDate=" + auction.getCloseDate() + " now=" + now
+                + " diff_ms=" + (auction.getCloseDate() - now));
         if (auction.isClosed() || auction.getCloseDate() <= now) {
             LOG.warning("placeBid: auction closed or expired for auctionId=" + auctionId + " now=" + now + " closeDate=" + auction.getCloseDate());
             return Response.status(Response.Status.BAD_REQUEST).entity("Auction closed or expired").build();

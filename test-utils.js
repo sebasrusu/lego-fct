@@ -178,12 +178,15 @@ function selectUserIds(context, events, done) {
  * Generate data for a new user using Faker
  */
 function genNewUser(context, events, done) {
-  const first = `${faker.person.firstName()}`
-  const last = `${faker.person.lastName()}`
-  context.vars.uId = first + "." + last
-  context.vars.uName = first + " " + last
-  context.vars.uPwd = `${faker.internet.password()}`
-  return done()
+  // user id like firstname.lastname (string)
+  const firstNames = ['ricardo', 'ana', 'john', 'maria', 'paulo', 'laura'];
+  const lastNames = ['andrade', 'silva', 'doe', 'pereira', 'santos'];
+  const first = firstNames[Math.floor(Math.random() * firstNames.length)];
+  const last = lastNames[Math.floor(Math.random() * lastNames.length)];
+  context.vars.uId = `${first}.${last}`;
+  context.vars.uName = `${first} ${last}`;
+  context.vars.uPwd = 'pwd123';
+  return done();
 }
 
 
@@ -250,18 +253,11 @@ function genProductCommentLoop(context, events, done) {
  * Generate data for a new auction using Faker
  */
 function genNewOldAuction(context, events, done) {
-  context.vars.aucStartingPrice = Math.floor(Math.random() * 100) + 10;
-  context.vars.aucLastBid = context.vars.aucStartingPrice - 1;
-  // ensure closeDate is in the future (e.g. +5..+30 minutes) to be listed by server
+  // ensure numeric basePrice and closeDate (ms)
   const now = Date.now();
-  const plusMs = (5 + Math.floor(Math.random() * 26)) * 60 * 1000; // 5..30 minutes
-  const d = new Date(now + plusMs);
-  context.vars.aucEndDate = d.toISOString();
-  context.vars.closeDate = now + plusMs; // epoch ms expected by server
-  context.vars.basePrice = context.vars.aucStartingPrice;
-  // keep seller/legoSet ids if already selected by scenario
-  if (!context.vars.sellerId && context.vars.uId) context.vars.sellerId = context.vars.uId;
-  if (!context.vars.legoSetId && context.vars.lsId) context.vars.legoSetId = context.vars.lsId;
+  const plusMs = (60 * 60 * 1000) + Math.floor(Math.random() * 24 * 3600 * 1000); // 1..25h
+  context.vars.closeDate = Number(now + plusMs);
+  context.vars.basePrice = Number(Math.floor(Math.random() * 90) + 10);
   return done();
 }
 
@@ -270,12 +266,11 @@ function genNewOldAuction(context, events, done) {
  * Generate data for a new bid using Faker
  */
 function genNewOldBid(context, events, done) {
-  selectUserRaw(context)
-  context.vars.aucLastBid = context.vars.aucLastBid + 1 + random(3);
-  // Compatibilidade: preencher payload usado pelo servidor
-  context.vars.amount = context.vars.aucLastBid;
-  context.vars.timestamp = Date.now();
-  return done()
+  // ensure numeric amount and timestamp
+  const base = Number(context.vars.basePrice) || 10;
+  context.vars.amount = Number(base + Math.floor(Math.random() * 20) + 1);
+  context.vars.timestamp = Number(Date.now());
+  return done();
 }
 
 
