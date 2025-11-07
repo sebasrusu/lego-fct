@@ -52,7 +52,7 @@ public class AzureManagement {
     static final String[] BLOB_CONTAINERS = { "media", "images" };
 
     static final Region[] REGIONS = new Region[] { Region.fromName("italynorth") };
-    static final String[] AZURE_RG_REGIONS = new String[] { "cc2526-italynorth" };
+    static final String[] AZURE_RG_REGIONS = new String[] { "cc2526" };
     static final String[] AZURE_APP_NAME = new String[] { "cc2526" };
     static final String[] AZURE_STORAGE_NAME = new String[] { "cc2526mediablob" };
     static final String[] AZURE_REDIS_NAME = new String[] { "cc2526redis02" };
