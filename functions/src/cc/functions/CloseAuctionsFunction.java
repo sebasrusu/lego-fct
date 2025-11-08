@@ -12,7 +12,7 @@ public class CloseAuctionsFunction {
 
     @FunctionName("CloseExpiredAuctions")
     public void run(
-            @TimerTrigger(name = "timer", schedule = "0 */10 * * * *") String timerInfo,
+            @TimerTrigger(name = "closeExpiredAuctionsTimer", schedule = "0 */10 * * * *") String timerInfo,
             ExecutionContext context
     ) {
         context.getLogger().info("=== FECHAR LEILÕES EXPIRADOS ===");
@@ -33,25 +33,21 @@ public class CloseAuctionsFunction {
 
         for (var item : auctions.queryItems(query, new CosmosQueryRequestOptions(), AuctionDAO.class)) {
             context.getLogger().info("Leilão fechado: " + item.getId());
-            // adicionar campo "closed" e fazer update
             item.setClosed(true);
             auctions.upsertItem(item);
-
         }
-
         client.close();
     }
 
-        @FunctionName("CloseAuctions")
+    @FunctionName("CloseAuctions")
     public void runCloseAuctions(
-            @TimerTrigger(name = "timer", schedule = "0 */5 * * * *") String timerInfo,
+            @TimerTrigger(name = "closeAuctionsWithLayerTimer", schedule = "0 */5 * * * *") String timerInfo,
             final ExecutionContext context){
         Logger logger = context.getLogger();
-        logger.info("CloseAuctions function triggered: " + timerInfo);
+        logger.info("=== CloseAuctions function triggered (Using CosmosDBLayer) ===");
 
-        CosmosDBLayer db = null;
         try {
-            db = CosmosDBLayer.getInstance();
+            CosmosDBLayer db = CosmosDBLayer.getInstance();
             var expiredAuctions = db.listExpiredAuctions();
             for (AuctionDAO auction : expiredAuctions) {
                 logger.info("Closing auction: " + auction.getId());
@@ -62,5 +58,4 @@ public class CloseAuctionsFunction {
             logger.severe("Error in CloseAuctions function: " + e.getMessage());
         }
     }
-    
 }

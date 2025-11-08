@@ -24,16 +24,10 @@ curl http://localhost:8080/rest/ctrl/version
 PASSO 1: Limpar e recompilar o projeto
 ---------------------------------------
 cd /Users/sebasrusu/Desktop/FCT/Cloud/projeto/lego-fct
-
-# Limpa completamente
 mvn clean
 rm -rf target/
-
-# Rebuilda com force update
 mvn clean package -U
-
 ls -lh target/*.war
-
 docker build --no-cache -t lego-fct-image .
 docker stop lego-fct || true && \
 docker rm lego-fct || true && \
