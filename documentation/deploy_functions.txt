@@ -1,0 +1,5 @@
+# be on the folder functions to deploy
+cd /functions
+
+# deploy the functions
+mvn azure-functions:deploy
