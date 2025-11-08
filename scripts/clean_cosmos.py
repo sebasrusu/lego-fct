@@ -5,6 +5,7 @@
 
 #perigoso: 
 #python3 scripts/clean_cosmos.py --env .env --containers users,legosets,auctions,comments,media
+#source /home/ydigit/NOVAFCT/cloud/lego-fct/.venv/bin/activate
 
 
 import os

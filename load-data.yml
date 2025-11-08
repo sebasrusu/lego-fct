@@ -40,6 +40,7 @@ scenarios:
             url: "/rest/user/auth"
             headers:
               Content-Type: application/json
+            beforeRequest: "debugRequest"
             json:
               user: "{{ uId }}"
               pwd: "{{ uPwd }}"
@@ -67,6 +68,7 @@ scenarios:
               description: "{{ lsDescription }}"
               photoId: "{{ imageId }}"
               ownerId: "{{ uId }}"
+            afterResponse: "logResponse"
             capture: 
               json: "$.id"
               as: "lsId"              # capture the legoset id to be used in adding legosets to users
@@ -76,6 +78,7 @@ scenarios:
               url: "/rest/user/auth"
               headers:
                 Content-Type: application/json
+              beforeRequest: "debugRequest"
               json:
                 user: "{{ uId }}"
                 pwd: "{{ uPwd }}"
@@ -93,6 +96,7 @@ scenarios:
               url: "/rest/user/auth"
               headers:
                 Content-Type: application/json
+              beforeRequest: "debugRequest"
               json:
                 user: "{{ uId }}"
                 pwd: "{{ uPwd }}"
@@ -119,6 +123,7 @@ scenarios:
               url: "/rest/user/auth"
               headers:
                 Content-Type: application/json
+              beforeRequest: "debugRequest"
               json:
                 user: "{{ uId }}"
                 pwd: "{{ uPwd }}"
@@ -137,17 +142,18 @@ scenarios:
               json:
                 legoSetId: "{{ lsId }}"
                 seller: "{{ uId }}"
-                startingPrice: "{{ aucStartingPrice }}"
-                endDate: "{{ aucEndDate }}"
+                basePrice: "{{ basePrice }}"
+                closeDate: "{{ closeDate }}"
               capture: 
                 json: "$.id"
                 as: "aucId"         # capture the auction id to be used in bid creation creation
           - loop:
-            - function: "genNewOldBid" 
+            - function: "genNewOldBid"
             - post:
                 url: "/rest/user/auth"
                 headers:
                   Content-Type: application/json
+                beforeRequest: "debugRequest"
                 json:
                   user: "{{ uId }}"
                   pwd: "{{ uPwd }}"
@@ -157,9 +163,9 @@ scenarios:
                   Content-Type: application/json
                   Accept: application/json
                 json:
-                  auctionId: "{{ aucId }}"
                   userId: "{{ uId }}"
-                  amount: "{{ aucLastBid }}"
+                  amount: "{{ amount }}"
+                  timestamp: "{{ timestamp }}"
             whileTrue: "randomLoop90"
           whileTrue: "randomLoop70"
         count: 500
