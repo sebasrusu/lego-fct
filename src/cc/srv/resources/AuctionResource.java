@@ -38,25 +38,48 @@ public class AuctionResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Auction> listAuctions(@QueryParam("legoSetId") String legoSetId, @QueryParam("recent") String recent, @QueryParam("st") @DefaultValue("0") int st, @QueryParam("len") @DefaultValue("20") int len) {
-        LOG.info("listAuctions called legoSetId=" + legoSetId + " recent=" + recent + " st=" + st + " len=" + len);
+    public List<Auction> listAuctions(@QueryParam("legoSetId") String legoSetId,
+                                      @QueryParam("st") @DefaultValue("0") int st,
+                                      @QueryParam("len") @DefaultValue("20") int len) {
+        LOG.info("listAuctions called legoSetId=" + legoSetId + " st=" + st + " len=" + len);
         if (legoSetId != null && !legoSetId.isEmpty()) {
             List<Auction> res = StreamSupport.stream(db.searchAuctionForLegoSet(legoSetId).spliterator(), false)
                     .map(AuctionDAO::toAuction).collect(Collectors.toList());
             LOG.info("listAuctions by legoSetId returned " + res.size());
             return res;
         }
-        if (recent != null) {
-             List<Auction> res = StreamSupport.stream(db.listAuctions(st, len).spliterator(), false)
-                .map(AuctionDAO::toAuction).collect(Collectors.toList());
-             LOG.info("listAuctions recent returned " + res.size());
-             return res;
-        }
         List<Auction> res = StreamSupport.stream(db.listAuctions(st, len).spliterator(), false)
                 .map(AuctionDAO::toAuction).collect(Collectors.toList());
         LOG.info("listAuctions default returned " + res.size());
         return res;
     }
+
+    // return open auctions (closeDate > now && not closed)
+    @GET
+    @Path("/open")
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Auction> listOpenAuctions(@QueryParam("st") @DefaultValue("0") int st,
+                                          @QueryParam("len") @DefaultValue("20") int len) {
+        LOG.info("listOpenAuctions called st=" + st + " len=" + len);
+        List<Auction> res = StreamSupport.stream(db.listOpenAuctions(st, len).spliterator(), false)
+                .map(AuctionDAO::toAuction).collect(Collectors.toList());
+        LOG.info("listOpenAuctions returned " + res.size());
+        return res;
+    }
+
+    // return closed / past auctions (closed==true OR closeDate <= now)
+    @GET
+    @Path("/closed")
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Auction> listClosedAuctions(@QueryParam("st") @DefaultValue("0") int st,
+                                            @QueryParam("len") @DefaultValue("20") int len) {
+        LOG.info("listClosedAuctions called st=" + st + " len=" + len);
+        List<Auction> res = StreamSupport.stream(db.listClosedAuctions(st, len).spliterator(), false)
+                .map(AuctionDAO::toAuction).collect(Collectors.toList());
+        LOG.info("listClosedAuctions returned " + res.size());
+        return res;
+    }
+
 
     @POST
     @Path("/{id}/bid")
@@ -127,6 +150,7 @@ public class AuctionResource {
             LOG.info("getAuctionById: not found id=" + auctionId);
             return Response.status(Response.Status.NOT_FOUND).entity("Auction not found").build();
         }
-        return Response.ok(a.toAuction()).build();
+        Auction out = new Auction(a.getId(), a.getLegoSetId(), a.getSellerId(), a.getBasePrice(), a.getCloseDate(), a.getBids(), a.isClosed());
+        return Response.ok(out).build();
     }
 }

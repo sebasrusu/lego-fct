@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Bid {
+    private String id;
     private String userId;
     private double amount;
     private long timestamp;
