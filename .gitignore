@@ -69,3 +69,5 @@ azurekeys-italynorth.props
 azurekeys.props
 azureprops-italynorth.sh
 .env.bak
+
+images

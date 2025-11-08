@@ -5,6 +5,7 @@ import cc.data.bid.Bid;
 import cc.data.comment.CommentDAO;
 import cc.data.lego.LegoSetDAO;
 import cc.data.user.UserDAO;
+import cc.data.auth.Session;
 import cc.utils.AzureProperties;
 import com.azure.cosmos.ConsistencyLevel;
 import com.azure.cosmos.CosmosClient;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 public class CosmosDBLayer {
     // try environment first, then fallback to azurekeys.props
@@ -51,6 +53,7 @@ public class CosmosDBLayer {
     private CosmosContainer legosets;
     private CosmosContainer comments;
     private CosmosContainer auctions;
+    private CosmosContainer sessions;
 
     private static final Logger LOG = Logger.getLogger(CosmosDBLayer.class.getName());
 
@@ -86,10 +89,12 @@ public class CosmosDBLayer {
         try { db.createContainerIfNotExists(new CosmosContainerProperties("legosets", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("comments", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("auctions", "/id")); } catch (Exception ignored) {}
+        try { db.createContainerIfNotExists(new CosmosContainerProperties("sessions", "/id")); } catch (Exception ignored) {} // Adicionar criação do container
         users = db.getContainer("users");
         legosets = db.getContainer("legosets");
         comments = db.getContainer("comments");
         auctions = db.getContainer("auctions");
+        sessions = db.getContainer("sessions"); // Inicializar o container
     }
 
     // --- User Methods ---
@@ -359,6 +364,65 @@ public class CosmosDBLayer {
                         + System.currentTimeMillis(),
                 null, AuctionDAO.class);
     }
+
+    private long countItemsInPeriod(CosmosContainer container, int seconds) {
+        init();
+        long timeBoundary = (System.currentTimeMillis() / 1000L) - seconds;
+        String query = "SELECT VALUE COUNT(1) FROM c WHERE c._ts > " + timeBoundary;
+        
+        CosmosPagedIterable<Long> result = container.queryItems(query, new CosmosQueryRequestOptions(), Long.class);
+        return result.iterator().hasNext() ? result.iterator().next() : 0;
+    }
+
+    public long countNewUsersInLast3Minutes() {
+        return countItemsInPeriod(users, 3 * 60);
+    }
+
+    public long countNewAuctionsInLast3Minutes() {
+        return countItemsInPeriod(auctions, 3 * 60);
+    }
+
+    public long countNewBidsInLast3Minutes() {
+        init();
+        long timeBoundary = System.currentTimeMillis() - (3 * 60 * 1000);
+        String query = "SELECT * FROM c WHERE c._ts > " + ((System.currentTimeMillis() / 1000L) - (3*60));
+        
+        AtomicInteger bidCount = new AtomicInteger(0);
+        auctions.queryItems(query, new CosmosQueryRequestOptions(), AuctionDAO.class)
+                .forEach(auction -> {
+                    if (auction.getBids() != null) {
+                        auction.getBids().forEach(bid -> {
+                            if (bid.getTimestamp() > timeBoundary) {
+                                bidCount.incrementAndGet();
+                            }
+                        });
+                    }
+                });
+        return bidCount.get();
+    }
+    
+    public int deleteExpiredSessions() {
+    init();
+    long now = System.currentTimeMillis();
+    String query = "SELECT * FROM c WHERE c.expiration < " + now;
+    
+    AtomicInteger deletedCount = new AtomicInteger(0);
+    CosmosPagedIterable<Session> expired = sessions.queryItems(query, new CosmosQueryRequestOptions(), Session.class);
+
+    expired.forEach(session -> {
+        try {
+            // Corrigido para usar getSid()
+            sessions.deleteItem(session.getSid(), new PartitionKey(session.getSid()), new CosmosItemRequestOptions());
+            deletedCount.incrementAndGet();
+        } catch (Exception e) {
+            // Corrigido para usar getSid()
+            LOG.warning("Falha ao apagar sessão expirada: " + session.getSid() + " - Erro: " + e.getMessage());
+        }
+    });
+    
+    return deletedCount.get();
+}
+
 
     public void close() {
         client.close();

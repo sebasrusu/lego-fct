@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pt.unl.fct.di.cc</groupId>
+        <artifactId>cc2526-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+
+    <artifactId>cc2526-webapp</artifactId>
+    <packaging>war</packaging>
+
+    <dependencies>
+        <!-- JAX-RS & RESTEasy -->
+        <dependency><groupId>jakarta.ws.rs</groupId><artifactId>jakarta.ws.rs-api</artifactId></dependency>
+        <dependency><groupId>org.jboss.resteasy</groupId><artifactId>resteasy-core</artifactId></dependency>
+        <dependency><groupId>org.jboss.resteasy</groupId><artifactId>resteasy-jaxb-provider</artifactId></dependency>
+        <dependency><groupId>org.jboss.resteasy</groupId><artifactId>resteasy-jackson2-provider</artifactId></dependency>
+        <dependency><groupId>org.jboss.resteasy</groupId><artifactId>resteasy-servlet-initializer</artifactId></dependency>
+
+        <!-- Jackson (JSON) -->
+        <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></dependency>
+        <dependency><groupId>com.fasterxml.jackson.jaxrs</groupId><artifactId>jackson-jaxrs-json-provider</artifactId></dependency>
+
+        <!-- Azure -->
+        <dependency><groupId>com.azure</groupId><artifactId>azure-cosmos</artifactId></dependency>
+        <dependency><groupId>com.azure</groupId><artifactId>azure-storage-blob</artifactId></dependency>
+        <dependency><groupId>com.azure.resourcemanager</groupId><artifactId>azure-resourcemanager</artifactId></dependency>
+        <dependency><groupId>com.azure</groupId><artifactId>azure-identity</artifactId></dependency>
+
+        <!-- Outras -->
+        <dependency><groupId>org.apache.commons</groupId><artifactId>commons-lang3</artifactId></dependency>
+        <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId></dependency>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+        <dependency><groupId>redis.clients</groupId><artifactId>jedis</artifactId></dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>src</sourceDirectory>
+        <plugins>
+            <plugin>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.4.0</version>
+                <configuration>
+                    <warSourceDirectory>WebContent</warSourceDirectory>
+                    <attachClasses>true</attachClasses>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.microsoft.azure</groupId>
+                <artifactId>azure-webapp-maven-plugin</artifactId>
+                <version>2.14.1</version>
+                <configuration>
+                    <appName>cc2526</appName>
+                    <resourceGroup>cc2526</resourceGroup>
+                    <region>italynorth</region>
+                    <pricingTier>F1</pricingTier>
+                    <runtime>
+                        <os>linux</os>
+                        <javaVersion>Java 21</javaVersion>
+                        <webContainer>Tomcat 10.1</webContainer>
+                    </runtime>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

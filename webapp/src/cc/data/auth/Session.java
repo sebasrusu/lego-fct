@@ -9,4 +9,5 @@ public class Session {
     private String sid;
     private String userId;
     private long createdAt;
+    private long expiration;
 }

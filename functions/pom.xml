@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pt.unl.fct.di.cc</groupId>
+        <artifactId>cc2526-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+
+    <artifactId>cc2526-functions</artifactId>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!-- Dependências das Functions -->
+        <dependency><groupId>com.microsoft.azure.functions</groupId><artifactId>azure-functions-java-library</artifactId></dependency>
+        <dependency><groupId>com.azure</groupId><artifactId>azure-cosmos</artifactId></dependency>
+        <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId></dependency>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+        
+        <!-- Dependência para o código partilhado que está na webapp -->
+        <dependency>
+            <groupId>pt.unl.fct.di.cc</groupId>
+            <artifactId>cc2526-webapp</artifactId>
+            <version>1.0</version>
+            <type>jar</type>
+            <classifier>classes</classifier>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>src</sourceDirectory>
+        <plugins>
+            <plugin>
+                <groupId>com.microsoft.azure</groupId>
+                <artifactId>azure-functions-maven-plugin</artifactId>
+                <version>1.29.0</version>
+                <configuration>
+                    <appName>cc2526function</appName>
+                    
+                    <resourceGroup>cc2526</resourceGroup>
+
+                    <region>italynorth</region>
+                    <pricingTier>B2</pricingTier>
+
+                    <runtime>
+                        <os>linux</os>
+                        <javaVersion>21</javaVersion>
+                    </runtime>
+                    <appSettings>
+                        <property>
+                            <name>FUNCTIONS_EXTENSION_VERSION</name>
+                            <value>~4</value>
+                        </property>
+                        <property><name>DB_URL</name><value>${env.DB_URL}</value></property>
+                        <property><name>DB_KEY</name><value>${env.DB_KEY}</value></property>
+                        <property><name>DB_NAME</name><value>${env.DB_NAME}</value></property>
+                    </appSettings>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>package-functions</id>
+                        <goals>
+                            <goal>package</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

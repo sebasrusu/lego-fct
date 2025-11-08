@@ -37,7 +37,7 @@ public class UserResource {
                     .build();
         } catch (CosmosException e) {
             // Se a exceção for por um item já existente (conflito)
-            if (e.getStatusCode() == 409) {
+            if (e.getStatusCode() == Response.Status.CONFLICT.getStatusCode()) {
                 return Response.status(Response.Status.CONFLICT).entity("User already exists.").build();
             }
             // Para outras exceções do Cosmos DB, retorna um erro genérico

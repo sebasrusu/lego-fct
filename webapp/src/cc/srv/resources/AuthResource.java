@@ -56,7 +56,7 @@ public class AuthResource {
         }
 
         // guardar sessão no Redis
-        RedisLayer.getInstance().putSession(new Session(sid, dao.getId(), System.currentTimeMillis()));
+        RedisLayer.getInstance().putSession(new Session(sid, dao.getId(), System.currentTimeMillis(), System.currentTimeMillis() + (SESSION_TTL_SECONDS * 1000L)));
 
         return Response.ok("Login com sucesso").cookie(cookie).build();
     }
