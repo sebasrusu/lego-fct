@@ -142,8 +142,8 @@ scenarios:
               json:
                 legoSetId: "{{ lsId }}"
                 seller: "{{ uId }}"
-                startingPrice: "{{ aucStartingPrice }}"
-                endDate: "{{ aucEndDate }}"
+                basePrice: "{{ basePrice }}"
+                closeDate: "{{ closeDate }}"
               capture: 
                 json: "$.id"
                 as: "aucId"         # capture the auction id to be used in bid creation creation
@@ -163,7 +163,6 @@ scenarios:
                   Content-Type: application/json
                   Accept: application/json
                 json:
-                  auctionId: "{{ aucId }}"
                   userId: "{{ uId }}"
                   amount: "{{ amount }}"
                   timestamp: "{{ timestamp }}"
