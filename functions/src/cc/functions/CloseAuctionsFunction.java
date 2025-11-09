@@ -11,7 +11,7 @@ public class CloseAuctionsFunction {
 
     @FunctionName("CloseAuctions")
     public void run(
-        @TimerTrigger(name = "timerInfo", schedule = "0 */5 * * * * *") String timerInfo,
+        @TimerTrigger(name = "timerInfo", schedule = "0 */1 * * * *") String timerInfo,
         final ExecutionContext context) {
 
         LOG.info("=== CloseAuctions function triggered (Using CosmosDBLayer) ===");
@@ -29,7 +29,7 @@ public class CloseAuctionsFunction {
 
     @FunctionName("GarbageCollection")
     public void runGarbageCollection(
-            @TimerTrigger(name = "garbageCollectionTimer", schedule = "0 */4 * * * *") String timerInfo, // Executa a cada 4 minutos
+            @TimerTrigger(name = "garbageCollectionTimer", schedule = "0 */1 * * * *") String timerInfo, // Executa a cada 4 minutos
             final ExecutionContext context) {
         
         Logger logger = context.getLogger();
