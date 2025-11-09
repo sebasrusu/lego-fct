@@ -34,7 +34,7 @@ public class CloseAuctionsFunction {
             final ExecutionContext context) {
         
         Logger logger = context.getLogger();
-        logger.info("=== GARBAGE COLLECTION: Limpando sessões expiradas ===");
+        logger.info("=== GARBAGE COLLECTION: limpar sessões expiradas ===");
 
         try {
             CosmosDBLayer db = CosmosDBLayer.getInstance();
