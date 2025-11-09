@@ -1,30 +1,29 @@
 package cc.functions;
 
+import cc.db.CosmosDBLayer;
 import cc.data.auction.AuctionDAO;
 import com.microsoft.azure.functions.*;
 import com.microsoft.azure.functions.annotation.*;
 import java.util.logging.Logger;
-import cc.db.CosmosDBLayer;
 
 public class CloseAuctionsFunction {
+    private static final Logger LOG = Logger.getLogger(CloseAuctionsFunction.class.getName());
 
     @FunctionName("CloseAuctions")
-    public void runCloseAuctions(
-            @TimerTrigger(name = "closeAuctionsWithLayerTimer", schedule = "0 */5 * * * *") String timerInfo,
-            final ExecutionContext context){
-        Logger logger = context.getLogger();
-        logger.info("=== CloseAuctions function triggered (Using CosmosDBLayer) ===");
+    public void run(
+        @TimerTrigger(name = "timerInfo", schedule = "0 */5 * * * * *") String timerInfo,
+        final ExecutionContext context) {
+
+        LOG.info("=== CloseAuctions function triggered (Using CosmosDBLayer) ===");
+        CosmosDBLayer db = CosmosDBLayer.getInstance();
 
         try {
-            CosmosDBLayer db = CosmosDBLayer.getInstance();
-            var expiredAuctions = db.listExpiredAuctions();
-            for (AuctionDAO auction : expiredAuctions) {
-                logger.info("Closing auction: " + auction.getId());
-                auction.setClosed(true);
-                db.updateAuction(auction);
+            for (AuctionDAO a : db.listExpiredAuctions()) {
+                LOG.info("Closing auction: " + a.getId());
+                db.updateAuction(a);
             }
         } catch (Exception e) {
-            logger.severe("Error in CloseAuctions function: " + e.getMessage());
+            LOG.severe("Error in CloseAuctions function: " + e.getMessage());
         }
     }
 
