@@ -8,10 +8,15 @@ import cc.data.lego.LegoSetDAO;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.azure.cosmos.util.CosmosPagedIterable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+// --- Imports de Log Corrigidos ---
+import java.util.logging.Level;
+import java.util.logging.Logger;
+// --- Fim dos Imports de Log ---
+
 import redis.clients.jedis.JedisPooled;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +41,8 @@ public class RedisLayer {
     private final String REDIS_KEY;
     private volatile boolean available = false;
 
-    private static final Logger logger = LoggerFactory.getLogger(RedisLayer.class);
+    // --- Logger Corrigido (igual ao CosmosDBLayer) ---
+    private static final Logger logger = Logger.getLogger(RedisLayer.class.getName());
 
     private RedisLayer() {
         String url = System.getenv("REDIS_URL");
@@ -46,112 +52,127 @@ public class RedisLayer {
         initClient();
     }
 
+    // --- initClient com o construtor URI correto E logging corrigido ---
     private void initClient() {
         if (REDIS_URL == null || REDIS_URL.isBlank()) {
             available = false;
-            logger.info("Redis URL not configured, Redis disabled");
+            logger.warning("Redis URL não configurada (REDIS_URL), Redis desativado.");
             return;
         }
+        
+        if (REDIS_KEY == null || REDIS_KEY.isBlank()) {
+            available = false;
+            logger.warning("Redis Key não configurada (REDIS_KEY), Redis desativado.");
+            return;
+        }
+        
         try {
             String host = REDIS_URL;
-            int port = 6379;
+            int port = 6380; // Porta SSL por defeito
+
             if (REDIS_URL.contains(":")) {
                 String[] parts = REDIS_URL.split(":", 2);
                 host = parts[0];
                 try { port = Integer.parseInt(parts[1]); } catch (Exception ignored) {}
             }
-            // Simple connection; extend for auth/TLS if needed for Azure.
-            jedis = new JedisPooled(host, port);
+
+            // rediss://:PASSWORD@HOST:PORT
+            String uriString = String.format("rediss://:%s@%s:%d", REDIS_KEY, host, port);
+            String loggedUri = String.format("rediss://:[PASSWORD]@%s:%d", host, port);
+            
+            // Log que AGORA VAI APARECER
+            logger.info("A tentar ligar ao Redis via URI: " + loggedUri);
+
+            jedis = new JedisPooled(new URI(uriString));
+
+            // Testar a conexão
+            String pingResult = jedis.ping();
+            
             available = true;
-            logger.info("Redis client initialized {}", host + ":" + port);
-        } catch (Throwable t) {
+            // Log que AGORA VAI APARECER
+            logger.info("Cliente Redis inicializado com sucesso. Ping: " + pingResult);
+            
+        } catch (Throwable t) { 
             available = false;
-            logger.error("Failed to init Redis client", t);
+            // Log de ERRO que AGORA VAI APARECER
+            logger.log(Level.SEVERE, "Falha ao inicializar cliente Redis", t);
         }
     }
+
 
     public boolean isAvailable() { return available; }
 
     public void putSession(Session s) {
-        if (!available || jedis == null || s == null || s.getSid() == null) return;
+        if (!available || jedis == null || s == null || s.getSid() == null) {
+            if(!available) logger.warning("putSession: Redis não está disponível.");
+            return;
+        }
         try {
             String k = key(s.getSid());
             String json = mapper.writeValueAsString(s);
             jedis.setex(k, ttlSeconds, json);
+            logger.fine("putSession: Sessão guardada " + k); // 'fine' é o 'debug'
         } catch (Exception e) {
-            logger.error("Redis putSession EX", e);
+            logger.log(Level.SEVERE, "Redis putSession EX", e);
         }
     }
 
     public Session getSession(String sid) {
-        if (!available || jedis == null || sid == null) return null;
+        if (!available || jedis == null || sid == null) {
+             if(!available) logger.warning("getSession: Redis não está disponível.");
+            return null;
+        }
         try {
             String k = key(sid);
             String json = jedis.get(k);
+            if(json == null) logger.fine("getSession: Cache miss " + k);
+            else logger.fine("getSession: Cache hit " + k);
             return json == null ? null : mapper.readValue(json, Session.class);
         } catch (Exception e) {
-            logger.error("Redis getSession EX", e);
+            logger.log(Level.SEVERE, "Redis getSession EX", e);
             return null;
         }
     }
 
     public void deleteSession(String sid) {
         if (!available || jedis == null || sid == null) return;
-        try { jedis.del(key(sid)); } catch (Exception ignored) {}
+        try { 
+            logger.fine("deleteSession: A apagar " + key(sid));
+            jedis.del(key(sid)); 
+        } catch (Exception ignored) {}
     }
 
     private String key(String sid) { return "sess:" + sid; }
 
     public void setLegosetsList(List<LegoSet> legosets) {
-        if (!available || jedis == null) return;
+        if (!available || jedis == null) {
+             if(!available) logger.warning("setLegosetsList: Redis não está disponível.");
+             return;
+        }
         try {
             String json = serialize(legosets);
             if (json != null) jedis.setex("legosets:list", ttlSeconds, json);
-            logger.debug("setLegosetsList: saved {} items", legosets == null ? 0 : legosets.size());
+            logger.fine("setLegosetsList: guardados " + (legosets == null ? 0 : legosets.size()) + " items");
         } catch (Exception e) {
-            logger.error("Erro ao salvar legosets no Redis", e);
+            logger.log(Level.SEVERE, "Erro ao salvar legosets no Redis", e);
         }
     }
 
     public List<LegoSet> getLegosetsList() {
-        if (!available || jedis == null) return Collections.emptyList();
+        if (!available || jedis == null) {
+            if(!available) logger.warning("getLegosetsList: Redis não está disponível.");
+            return Collections.emptyList();
+        }
         try {
             String json = jedis.get("legosets:list");
             if (json == null) {
-                logger.debug("getLegosetsList: cache miss");
+                logger.fine("getLegosetsList: cache miss");
                 return Collections.emptyList();
             }
-            logger.debug("getLegosetsList: cache hit (bytes={})", json.length());
+            logger.fine("getLegosetsList: cache hit (bytes=" + json.length() + ")");
             return mapper.readValue(json, new TypeReference<List<LegoSet>>() {});
         } catch (Exception e) {
-            logger.error("Erro ao recuperar legosets do Redis", e);
-            return Collections.emptyList();
-        }
-    }
-
-    public void setCommentsList(List<Comment> comments) {
-        if (!available || jedis == null) return;
-        try {
-            String json = serialize(comments);
-            if (json != null) jedis.setex("comments:list", ttlSeconds, json);
-            logger.debug("setCommentsList: saved {} items", comments == null ? 0 : comments.size());
-        } catch (Exception e) {
-            logger.error("Erro ao salvar comentários no Redis", e);
-        }
-    }
-
-    public List<Comment> getCommentsList() {
-        if (!available || jedis == null) return Collections.emptyList();
-        try {
-            String data = jedis.get("comments:list");
-            if (data == null) {
-                logger.debug("getCommentsList: cache miss");
-                return Collections.emptyList();
-            }
-            logger.debug("getCommentsList: cache hit (bytes={})", data.length());
-            return mapper.readValue(data, mapper.getTypeFactory().constructCollectionType(List.class, Comment.class));
-        } catch (Exception e) {
-            logger.error("Erro ao recuperar comentários do Redis", e);
+            logger.log(Level.SEVERE, "Erro ao recuperar legosets do Redis", e);
             return Collections.emptyList();
         }
     }
@@ -159,7 +180,7 @@ public class RedisLayer {
     // --- NEW: per-lego comments cache (recommended) ---
     public void setCommentsForLego(String legoId, List<Comment> comments) {
         if (!available || jedis == null || legoId == null) {
-            logger.debug("setCommentsForLego: redis unavailable or legoId null");
+            if(!available) logger.warning("setCommentsForLego: Redis não está disponível.");
             return;
         }
         try {
@@ -167,79 +188,84 @@ public class RedisLayer {
             String json = serialize(comments);
             if (json != null) {
                 jedis.setex(key, ttlSeconds, json);
-                logger.info("setCommentsForLego: saved {} items for legoId={}", comments == null ? 0 : comments.size(), legoId);
+                logger.info("setCommentsForLego: guardados " + (comments == null ? 0 : comments.size()) + " items para legoId=" + legoId);
             } else {
-                logger.warn("setCommentsForLego: serialization returned null for legoId={}", legoId);
+                logger.warning("setCommentsForLego: serialização devolveu null para legoId=" + legoId);
             }
         } catch (Exception e) {
-            logger.error("Erro ao salvar comentários por lego no Redis for legoId=" + legoId, e);
+            logger.log(Level.SEVERE, "Erro ao salvar comentários por lego no Redis for legoId=" + legoId, e);
         }
     }
 
     public List<Comment> getCommentsForLego(String legoId) {
         if (!available || jedis == null || legoId == null) {
-            logger.debug("getCommentsForLego: redis unavailable or legoId null");
+            if(!available) logger.warning("getCommentsForLego: Redis não está disponível.");
             return Collections.emptyList();
         }
         try {
             String key = "comments:lego:" + legoId;
             String data = jedis.get(key);
             if (data == null) {
-                logger.debug("getCommentsForLego: cache miss for legoId={}", legoId);
+                logger.fine("getCommentsForLego: cache miss para legoId=" + legoId);
                 return Collections.emptyList();
             }
-            logger.debug("getCommentsForLego: cache hit for legoId={} (bytes={})", legoId, data.length());
+            logger.fine("getCommentsForLego: cache hit para legoId=" + legoId + " (bytes=" + data.length() + ")");
             return mapper.readValue(data, mapper.getTypeFactory().constructCollectionType(List.class, Comment.class));
         } catch (Exception e) {
-            logger.error("Erro ao recuperar comentários por lego do Redis for legoId=" + legoId, e);
+            logger.log(Level.SEVERE, "Erro ao recuperar comentários por lego do Redis for legoId=" + legoId, e);
             return Collections.emptyList();
         }
     }
 
     public void deleteCommentsForLego(String legoId) {
         if (!available || jedis == null || legoId == null) return;
-        try { jedis.del("comments:lego:" + legoId); } catch (Exception e) { logger.error("Erro deleteCommentsForLego " + legoId, e); }
+        try { 
+            String key = "comments:lego:" + legoId;
+            logger.fine("deleteCommentsForLego: A apagar " + key);
+            jedis.del(key); 
+        } catch (Exception e) { logger.log(Level.SEVERE, "Erro deleteCommentsForLego " + legoId, e); }
     }
-
-    // small helpers already present: getRawLegosetsList/getRawCommentsList/exist/deleteKey etc.
+    
     public String getRawLegosetsList() {
         if (!available || jedis == null) return null;
-        try { return jedis.get("legosets:list"); } catch (Exception e) { logger.error("Erro getRawLegosetsList", e); return null; }
+        try { return jedis.get("legosets:list"); } catch (Exception e) { logger.log(Level.SEVERE, "Erro getRawLegosetsList", e); return null; }
     }
 
     public String getRawCommentsList() {
         if (!available || jedis == null) return null;
-        try { return jedis.get("comments:list"); } catch (Exception e) { logger.error("Erro getRawCommentsList", e); return null; }
+        try { return jedis.get("comments:list"); } catch (Exception e) { logger.log(Level.SEVERE, "Erro getRawCommentsList", e); return null; }
     }
 
     public boolean existsKey(String key) {
         if (!available || jedis == null || key == null) return false;
-        try { return jedis.exists(key); } catch (Exception e) { logger.error("Erro existsKey " + key, e); return false; }
+        try { return jedis.exists(key); } catch (Exception e) { logger.log(Level.SEVERE, "Erro existsKey " + key, e); return false; }
     }
 
     public void deleteKey(String key) {
         if (!available || jedis == null || key == null) return;
-        try { jedis.del(key); } catch (Exception e) { logger.error("Erro deleteKey " + key, e); }
+        try { 
+            logger.fine("deleteKey: A apagar " + key);
+            jedis.del(key); 
+        } catch (Exception e) { logger.log(Level.SEVERE, "Erro deleteKey " + key, e); }
     }
 
     private String serialize(Object obj) {
         try { return mapper.writeValueAsString(obj); } catch (Exception e) {
-            logger.error("Redis serialize EX", e);
+            logger.log(Level.SEVERE, "Redis serialize EX", e);
             return null;
         }
     }
 
-    // --- NEW: cache-aside helpers that load from Cosmos DB if cache miss ---
+    // --- Métodos getOrLoad (Cache-Aside) ---
+
     public List<LegoSet> getOrLoadLegosetsList() {
         try {
-            // try cache first
             List<LegoSet> cached = getLegosetsList();
             if (cached != null && !cached.isEmpty()) {
-                logger.debug("getOrLoadLegosetsList: returning from cache (count={})", cached.size());
+                logger.fine("getOrLoadLegosetsList: a devolver da cache (count=" + cached.size() + ")");
                 return cached;
             }
 
-            // cache miss -> load from CosmosDB
             CosmosDBLayer cosmos = CosmosDBLayer.getInstance();
             CosmosPagedIterable<LegoSetDAO> daos = cosmos.listLegoSets();
             List<LegoSet> result = new ArrayList<>();
@@ -249,13 +275,13 @@ public class RedisLayer {
 
             if (!result.isEmpty() && available && jedis != null) {
                 setLegosetsList(result);
-                logger.info("getOrLoadLegosetsList: populated cache with {} items", result.size());
+                logger.info("getOrLoadLegosetsList: cache populada com " + result.size() + " items");
             } else {
-                logger.debug("getOrLoadLegosetsList: no items loaded from DB");
+                logger.fine("getOrLoadLegosetsList: 0 items da DB");
             }
             return result;
         } catch (Exception e) {
-            logger.error("getOrLoadLegosetsList EX", e);
+            logger.log(Level.SEVERE, "getOrLoadLegosetsList EX", e);
             return Collections.emptyList();
         }
     }
@@ -263,14 +289,12 @@ public class RedisLayer {
     public List<Comment> getOrLoadCommentsForLego(String legoId) {
         if (legoId == null) return Collections.emptyList();
         try {
-            // try per-lego cache first
             List<Comment> cached = getCommentsForLego(legoId);
             if (cached != null && !cached.isEmpty()) {
-                logger.debug("getOrLoadCommentsForLego: returning from cache for legoId={} (count={})", legoId, cached.size());
+                logger.fine("getOrLoadCommentsForLego: a devolver da cache para legoId=" + legoId + " (count=" + cached.size() + ")");
                 return cached;
             }
 
-            // cache miss -> load from CosmosDB
             CosmosDBLayer cosmos = CosmosDBLayer.getInstance();
             CosmosPagedIterable<CommentDAO> daos = cosmos.listCommentsByLegoSet(legoId);
             List<Comment> result = new ArrayList<>();
@@ -278,15 +302,15 @@ public class RedisLayer {
                 result.add(mapper.convertValue(dao, Comment.class));
             }
 
-            if (!result.isEmpty() && available && jedis != null) {
+            if (available && jedis != null) { // Guardar mesmo se estiver vazio
                 setCommentsForLego(legoId, result);
-                logger.info("getOrLoadCommentsForLego: populated cache for legoId={} with {} items", legoId, result.size());
+                logger.info("getOrLoadCommentsForLego: cache populada para legoId=" + legoId + " com " + result.size() + " items");
             } else {
-                logger.debug("getOrLoadCommentsForLego: no comments loaded from DB for legoId={}", legoId);
+                logger.fine("getOrLoadCommentsForLego: 0 comentários da DB para legoId=" + legoId);
             }
             return result;
         } catch (Exception e) {
-            logger.error("getOrLoadCommentsForLego EX for legoId=" + legoId, e);
+            logger.log(Level.SEVERE, "getOrLoadCommentsForLego EX para legoId=" + legoId, e);
             return Collections.emptyList();
         }
     }
