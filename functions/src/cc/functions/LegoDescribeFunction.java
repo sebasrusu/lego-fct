@@ -121,7 +121,7 @@ public class LegoDescribeFunction {
             String[] normalizedTags = ((List<String>) normalized.get("tags")).toArray(new String[0]);
 
             CosmosDBLayer db = CosmosDBLayer.getInstance();
-            db.upsertLegoDescription(legoSetId, normalizedDescription, normalizedTags, "vision");
+            db.upsertLegoDescription(legoSetId, normalizedDescription, normalizedTags);
             LOG.info("Saved description for " + legoSetId);
         } catch (Exception e) {
             LOG.severe("LegoDescribe error: " + e.getMessage());

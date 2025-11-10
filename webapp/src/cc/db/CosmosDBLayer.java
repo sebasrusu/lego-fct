@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
+import java.util.Map;
+import java.util.HashMap;
 public class CosmosDBLayer {
     // try environment first, then fallback to azurekeys.props
     private static final String CONNECTION_URL;
@@ -54,7 +56,8 @@ public class CosmosDBLayer {
     private CosmosContainer comments;
     private CosmosContainer auctions;
     private CosmosContainer sessions;
-
+    private CosmosContainer legoDescriptions;
+    
     private static final Logger LOG = Logger.getLogger(CosmosDBLayer.class.getName());
 
     private CosmosDBLayer(CosmosClient client) {
@@ -90,11 +93,13 @@ public class CosmosDBLayer {
         try { db.createContainerIfNotExists(new CosmosContainerProperties("comments", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("auctions", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("sessions", "/id")); } catch (Exception ignored) {} // Adicionar criação do container
+        try { db.createContainerIfNotExists(new CosmosContainerProperties("lego_descriptions", "/legoSetId")); } catch (Exception ignored) {}
         users = db.getContainer("users");
         legosets = db.getContainer("legosets");
         comments = db.getContainer("comments");
         auctions = db.getContainer("auctions");
         sessions = db.getContainer("sessions"); // Inicializar o container
+        legoDescriptions = db.getContainer("lego_descriptions");
     }
 
     // --- User Methods ---
@@ -426,5 +431,22 @@ public class CosmosDBLayer {
 
     public void close() {
         client.close();
+    }
+
+    public void upsertLegoDescription(String legoSetId, String description, String[] tags) {
+        init();
+        try {
+            Map<String,Object> doc = new HashMap<>();
+            // use legoSetId as id to ensure one description per lego set
+            doc.put("id", legoSetId);
+            doc.put("legoSetId", legoSetId);
+            doc.put("description", description);
+            doc.put("tags", tags);
+            doc.put("updatedAt", System.currentTimeMillis());
+            CosmosItemResponse<Object> resp = legoDescriptions.upsertItem(doc);
+            LOG.info("upsertLegoDescription: upserted lego_descriptions id=" + legoSetId + " status=" + resp.getStatusCode());
+        } catch (Exception e) {
+            LOG.warning("upsertLegoDescription: err=" + e.getMessage());
+        }
     }
 }

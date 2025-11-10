@@ -3,3 +3,33 @@ cd /functions
 
 # deploy the functions
 mvn azure-functions:deploy
+
+
+
+
+
+
+
+
+# delete deployed function (will be recreated on next deploy)
+az functionapp function delete --resource-group cc2526 --name cc2526function --function-name LegoDescribeOnBlob
+
+# rebuild & redeploy functions module
+cd /home/ydigit/NOVAFCT/cloud/lego-fct
+mvn -U -pl :cc2526-functions -am -DskipTests clean package
+mvn -pl :cc2526-functions azure-functions:deploy
+
+# verify binding now points at media/{name}
+az functionapp function show --resource-group cc2526 --name cc2526function --function-name LegoDescribeOnBlob -o json | jq '.config.bindings'
+
+
+
+
+##test computer vision
+
+curl -s -X POST "https://cc2526.azurewebsites.net/rest/media" \
+  -H "Content-Type: image/jpeg" \
+  --data-binary @/home/ydigit/NOVAFCT/cloud/lego-fct/images/ship.jpg -o /tmp/media_resp.txt -w "\nHTTP_STATUS:%{http_code}\n"
+
+id=$(tr -d '"' < /tmp/media_resp.txt | tr -d '\n')
+echo "uploaded id = $id"
