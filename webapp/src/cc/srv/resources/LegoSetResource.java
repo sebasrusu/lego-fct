@@ -6,31 +6,29 @@ import cc.data.lego.LegoSet;
 import cc.data.lego.LegoSetDAO;
 import cc.data.user.UserDAO;
 import cc.db.CosmosDBLayer;
-import cc.db.RedisLayer; // Importação Adicionada
+import cc.db.RedisLayer; 
 import com.azure.cosmos.CosmosException;
+import java.net.URI;
+import java.util.ArrayList; 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.net.URI;
-import java.util.ArrayList; // Importação Adicionada
-import java.util.Arrays;
-import java.util.Collections; // Importação Adicionada
-import java.util.List;
-import java.util.UUID;
-import java.util.logging.Level; // Importação Adicionada
-import java.util.logging.Logger; // Importação Adicionada
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
 @Path("/legoset")
 public class LegoSetResource {
-    
     private final CosmosDBLayer db = CosmosDBLayer.getInstance();
+    private static final Logger LOG = Logger.getLogger(LegoSetResource.class.getName());
+    // ADDED: redis instance + mapper used by caching code
     private final RedisLayer redis = RedisLayer.getInstance();
-
-    // Adicionar um logger para vermos os erros
-    private static final Logger LOGGER = Logger.getLogger(LegoSetResource.class.getName());
+    private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
@@ -67,7 +65,7 @@ public class LegoSetResource {
             }
 
             // --- INVALIDAÇÃO DA CACHE ---
-            LOGGER.info("Invalidando cache para legosets:list (createLegoSet)");
+            LOG.info("Invalidando cache para legosets:list (createLegoSet)");
             redis.deleteKey("legosets:list");
             // -----------------------------
 
@@ -78,10 +76,10 @@ public class LegoSetResource {
             if (e.getStatusCode() == 409) {
                 return Response.status(Response.Status.CONFLICT).entity("LegoSet already exists.").build();
             }
-            LOGGER.log(Level.SEVERE, "Erro CosmosDB ao criar LegoSet", e);
+            LOG.log(Level.SEVERE, "Erro CosmosDB ao criar LegoSet", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Erro genérico ao criar LegoSet", e);
+            LOG.log(Level.SEVERE, "Erro genérico ao criar LegoSet", e);
             return Response.serverError().entity("Erro ao criar LegoSet: " + e.getMessage()).build();
         }
     }
@@ -102,20 +100,20 @@ public class LegoSetResource {
         
         // Caminho 1: Por User (Sem cache neste exemplo)
         if (userId != null && !userId.isEmpty()) {
-            LOGGER.info("A processar listLegoSets para userId: " + userId);
+            LOG.info("A processar listLegoSets para userId: " + userId);
             return StreamSupport.stream(db.listLegoSetsOfUser(userId).spliterator(), false)
                     .map(LegoSetDAO::toLegoSet).collect(Collectors.toList());
         }
 
         // Caminho 2: Recentes (Sem cache neste exemplo)
         if(recent != null) {
-            LOGGER.info("A processar listLegoSets para recent: " + st + ", " + len);
+            LOG.info("A processar listLegoSets para recent: " + st + ", " + len);
             return StreamSupport.stream(db.listMostRecentLegoSets(st, len).spliterator(), false)
                     .map(LegoSetDAO::toLegoSet).collect(Collectors.toList());
         }
 
         // --- CACHE-ASIDE: Listar Todos ---
-        LOGGER.info("A processar listLegoSets (todos)");
+        LOG.info("A processar listLegoSets (todos)");
         String cacheKey = "legosets:list";
 
         // 1. Tentar obter da cache
@@ -123,31 +121,31 @@ public class LegoSetResource {
         try {
              cachedSets = redis.getLegosetsList();
         } catch (Exception e) {
-             LOGGER.log(Level.WARNING, "Falha ao LER legosets:list do Redis", e);
+             LOG.log(Level.WARNING, "Falha ao LER legosets:list do Redis", e);
         }
        
         if (cachedSets != null && !cachedSets.isEmpty()) {
-            LOGGER.info("Cache HIT para legosets:list");
+            LOG.info("Cache HIT para legosets:list");
             return cachedSets;
         }
 
         // 2. Cache miss: Ir à base de dados
         List<LegoSet> legoSets;
         try {
-            LOGGER.info("Cache MISS para legosets:list. A consultar Cosmos DB.");
+            LOG.info("Cache MISS para legosets:list. A consultar Cosmos DB.");
             legoSets = StreamSupport.stream(db.listLegoSets().spliterator(), false)
                     .map(LegoSetDAO::toLegoSet).collect(Collectors.toList());
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Falha ao consultar/mapear legosets da Cosmos DB", e);
+            LOG.log(Level.SEVERE, "Falha ao consultar/mapear legosets da Cosmos DB", e);
             legoSets = Collections.emptyList();
         }
         
         // 3. Guardar na cache
         try {
-            LOGGER.info("A guardar legosets:list na cache.");
+            LOG.info("A guardar legosets:list na cache.");
             redis.setLegosetsList(legoSets);
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Falha ao GUARDAR legosets:list no Redis", e);
+            LOG.log(Level.WARNING, "Falha ao GUARDAR legosets:list no Redis", e);
         }
 
         return legoSets;
@@ -164,13 +162,13 @@ public class LegoSetResource {
             db.updateLegoSet(new LegoSetDAO(legoSet));
 
             // --- INVALIDAÇÃO DA CACHE ---
-            LOGGER.info("Invalidando cache para legosets:list (updateLegoSet)");
+            LOG.info("Invalidando cache para legosets:list (updateLegoSet)");
             redis.deleteKey("legosets:list");
             // -----------------------------
 
             return Response.ok().build();
         } catch (Exception e) {
-             LOGGER.log(Level.SEVERE, "Falha ao atualizar legoset", e);
+             LOG.log(Level.SEVERE, "Falha ao atualizar legoset", e);
              return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
         }
     }
@@ -182,45 +180,17 @@ public class LegoSetResource {
             db.deleteLegoSet(id);
 
             // --- INVALIDAÇÃO DA CACHE ---
-            LOGGER.info("Invalidando cache para legosets:list (deleteLegoSet)");
+            LOG.info("Invalidando cache para legosets:list (deleteLegoSet)");
             redis.deleteKey("legosets:list");
             // Também apaga a cache de comentários desse lego (se existir)
-            LOGGER.info("Invalidando cache para comments:lego:" + id);
+            LOG.info("Invalidando cache para comments:lego:" + id);
             redis.deleteCommentsForLego(id);
             // -----------------------------
 
             return Response.noContent().build();
         } catch (Exception e) {
-             LOGGER.log(Level.SEVERE, "Falha ao apagar legoset", e);
+             LOG.log(Level.SEVERE, "Falha ao apagar legoset", e);
              return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
-        }
-    }
-
-    @POST
-    @Path("/{id}/comment")
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response createComment(@PathParam("id") String legoSetId, Comment comment) {
-        if (comment.getCommentText() == null || comment.getCommentText().isEmpty()) {
-            return Response.status(Response.Status.BAD_REQUEST).entity("Comment text cannot be empty.").build();
-        }
-        comment.setLegoSetId(legoSetId);
-        if (comment.getId() == null || comment.getId().isEmpty()) {
-            comment.setId(UUID.randomUUID().toString());
-        }
-        
-        try {
-            db.createComment(new CommentDAO(comment));
-            
-            // --- INVALIDAÇÃO DA CACHE ---
-            LOGGER.info("Invalidando cache para comments:lego:" + legoSetId);
-            redis.deleteCommentsForLego(legoSetId);
-            // -----------------------------
-
-            return Response.status(Response.Status.CREATED).entity(comment).build();
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Erro ao criar comentário", e);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
         }
     }
 
@@ -228,46 +198,57 @@ public class LegoSetResource {
     @Path("/{id}/comment")
     @Produces(MediaType.APPLICATION_JSON)
     public List<Comment> listComments(@PathParam("id") String legoSetId) {
-        
-        LOGGER.info("A processar listComments para: " + legoSetId);
-        List<Comment> comments;
+        // use the same key prefix as RedisLayer
         String cacheKey = "comments:lego:" + legoSetId;
-
-        // 1. Tentar obter da cache
         try {
-            // A sua RedisLayer.getCommentsForLego devolve lista vazia em vez de null
-            // Precisamos de uma verificação mais explícita se a chave existe
-            if (redis.existsKey(cacheKey)) {
-                LOGGER.info("Cache HIT para: " + cacheKey);
-                return redis.getCommentsForLego(legoSetId);
+            if (redis != null && redis.isAvailable()) {
+                String cached = redis.getValue(cacheKey);
+                if (cached != null) {
+                    // return cached JSON as List<Comment>
+                    Comment[] arr = mapper.readValue(cached, Comment[].class);
+                    return Arrays.asList(arr);
+                }
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Falha ao LER do Redis, a continuar para DB", e);
+            LOG.warning("Redis cache read failed: " + e.getMessage());
         }
 
-        // 2. Cache MISS: Ir à base de dados
-        LOGGER.info("Cache MISS para: " + cacheKey + ". A consultar Cosmos DB.");
+        // fallback to Cosmos DB
+        List<Comment> fromDb = StreamSupport.stream(db.listCommentsByLegoSet(legoSetId).spliterator(), false)
+                .map(CommentDAO::toComment)
+                .collect(Collectors.toList());
+
         try {
-            comments = StreamSupport.stream(db.listCommentsByLegoSet(legoSetId).spliterator(), false)
-                    .map(CommentDAO::toComment) // A excepção estava provavelmente aqui
-                    .collect(Collectors.toList());
-            LOGGER.info("Consulta à DB retornou " + comments.size() + " comentários.");
-
+            if (redis != null && redis.isAvailable()) {
+                String json = mapper.writeValueAsString(fromDb);
+                redis.putValue(cacheKey, json);
+            }
         } catch (Exception e) {
-            // Se a DB falhar (ex: NullPointerException no .map), logamos o erro
-            // e devolvemos uma lista vazia para não bloquear o cliente.
-            LOGGER.log(Level.SEVERE, "Falha ao consultar/mapear comentários da Cosmos DB", e);
-            comments = Collections.emptyList(); // Devolve vazio em vez de crashar
+            LOG.warning("Redis cache write failed: " + e.getMessage());
         }
+        return fromDb;
+    }
 
-        // 3. Guardar na cache (mesmo que esteja vazia, para cachear a "não existência")
+    @POST
+    @Path("/{id}/comment")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createComment(@PathParam("id") String legoSetId, Comment comment) {
         try {
-            LOGGER.info("A guardar na cache para: " + cacheKey);
-            redis.setCommentsForLego(legoSetId, comments);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Falha ao GUARDAR no Redis", e);
-        }
+            if (comment == null) return Response.status(Response.Status.BAD_REQUEST).entity("comment obrigatório").build();
+            if (comment.getId() == null || comment.getId().isBlank())
+                comment.setId(UUID.randomUUID().toString());
+            comment.setLegoSetId(legoSetId);
 
-        return comments;
+            db.createComment(new CommentDAO(comment));
+
+            if (redis.isAvailable()) redis.deleteCommentsForLego(legoSetId);
+
+            URI uri = URI.create(String.format("/legoset/%s/comment/%s", legoSetId, comment.getId()));
+            return Response.created(uri).entity(comment).build();
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "Erro criar comentário " + legoSetId, e);
+            return Response.serverError().build();
+        }
     }
 }

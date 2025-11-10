@@ -3,6 +3,7 @@ package cc.db;
 import cc.data.auction.AuctionDAO;
 import cc.data.bid.Bid;
 import cc.data.comment.CommentDAO;
+import cc.data.comment.Comment;
 import cc.data.lego.LegoSetDAO;
 import cc.data.user.UserDAO;
 import cc.data.auth.Session;
@@ -265,15 +266,24 @@ public class CosmosDBLayer {
                 LegoSetDAO.class);
     }
 
-    // --- Comment Methods ---
-    public void createComment(CommentDAO comment) {
+    // --- Comment Methods (mínimo para cache) ---
+    // Container já inicializado em init(): comments
+    public CommentDAO createComment(CommentDAO dao) {
         init();
-        comments.createItem(comment);
+        // PartitionKey = legoSetId (assumindo modelo)
+        comments.createItem(dao, new PartitionKey(dao.getLegoSetId()), new CosmosItemRequestOptions());
+        return dao;
     }
 
-    public CosmosPagedIterable<CommentDAO> listCommentsByLegoSet(String legoSetId) {
+    public List<CommentDAO> listCommentsByLegoSet(String legoSetId) {
         init();
-        return comments.queryItems("SELECT * FROM c WHERE c.legoSetId = '" + legoSetId + "'", null, CommentDAO.class);
+        if (legoSetId == null || legoSetId.isBlank()) return Collections.emptyList();
+        String q = "SELECT * FROM c WHERE c.legoSetId = @lid";
+        SqlQuerySpec spec = new SqlQuerySpec(q, Collections.singletonList(new SqlParameter("@lid", legoSetId)));
+        List<CommentDAO> out = new ArrayList<>();
+        comments.queryItems(spec, new CosmosQueryRequestOptions(), CommentDAO.class)
+                .forEach(out::add);
+        return out;
     }
 
     // --- Auction Methods ---
