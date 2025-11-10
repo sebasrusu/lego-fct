@@ -36,6 +36,24 @@
         <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId></dependency>
         <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
         <dependency><groupId>redis.clients</groupId><artifactId>jedis</artifactId></dependency>
+
+        <!-- JAX-RS API (compile-time). Use scope "provided" if runtime supplies JAX-RS -->
+        <dependency>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>javax.ws.rs-api</artifactId>
+            <version>2.1.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- If your App Service/Tomcat does NOT provide a JAX-RS impl at runtime,
+             replace the above with an implementation (uncomment below) -->
+        <!--
+        <dependency>
+          <groupId>org.glassfish.jersey.core</groupId>
+          <artifactId>jersey-server</artifactId>
+          <version>2.35</version>
+        </dependency>
+        -->
     </dependencies>
 
     <build>

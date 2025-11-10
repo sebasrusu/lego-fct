@@ -24,82 +24,95 @@ import java.util.logging.Logger;
 import java.util.Map;
 import java.util.HashMap;
 public class CosmosDBLayer {
+    private static final Logger LOG = Logger.getLogger(CosmosDBLayer.class.getName());
+
+    // singleton instance
+    private static CosmosDBLayer instance;
+
     // try environment first, then fallback to azurekeys.props
     private static final String CONNECTION_URL;
     private static final String DB_KEY;
     private static final String DB_NAME;
 
+    // shared Cosmos objects (declare once)
+    private CosmosClient client;
+    private CosmosDatabase db;
+    private CosmosContainer legoDescriptions;
+    private CosmosContainer users;
+    private CosmosContainer legosets;
+    private CosmosContainer comments;
+    private CosmosContainer auctions;
+    private CosmosContainer sessions;
+    
     static {
         String url = System.getenv("DB_URL");
         String key = System.getenv("DB_KEY");
-        String name = System.getenv("DB_NAME");
+        String dbName = System.getenv("DB_NAME");
         try {
             Properties p = AzureProperties.getProperties();
             if ((url == null || url.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_URL) != null)
                 url = p.getProperty(AzureProperties.COSMOSDB_URL);
             if ((key == null || key.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_KEY) != null)
                 key = p.getProperty(AzureProperties.COSMOSDB_KEY);
-            if ((name == null || name.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_DATABASE) != null)
-                name = p.getProperty(AzureProperties.COSMOSDB_DATABASE);
+            if ((dbName == null || dbName.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_DATABASE) != null)
+                dbName = p.getProperty(AzureProperties.COSMOSDB_DATABASE);
         } catch (Exception ignored) {}
-        CONNECTION_URL = url;
-        DB_KEY = key;
-        DB_NAME = name;
+        CONNECTION_URL = url != null ? url : "";
+        DB_KEY = key != null ? key : "";
+        DB_NAME = dbName != null ? dbName : "ccdb";
     }
 
-    private static CosmosDBLayer instance;
-
-    private CosmosClient client;
-    private CosmosDatabase db;
-    private CosmosContainer users;
-    private CosmosContainer legosets;
-    private CosmosContainer comments;
-    private CosmosContainer auctions;
-    private CosmosContainer sessions;
-    private CosmosContainer legoDescriptions;
-    
-    private static final Logger LOG = Logger.getLogger(CosmosDBLayer.class.getName());
-
-    private CosmosDBLayer(CosmosClient client) {
-        this.client = client;
+    private CosmosDBLayer() {
+        // private ctor for singleton
     }
 
+    // singleton accessor used by resources
     public static synchronized CosmosDBLayer getInstance() {
-        if (instance != null)
-            return instance;
-
-        if (CONNECTION_URL == null || DB_KEY == null || DB_NAME == null) {
-            throw new IllegalStateException(
-                    "Config em falta: DB_URL/DB_KEY/DB_NAME. Verifica App Settings ou flags -D.");
+        if (instance == null) {
+            instance = new CosmosDBLayer();
+            instance.init();
         }
-
-        CosmosClient client = new CosmosClientBuilder().endpoint(CONNECTION_URL).key(DB_KEY)
-                .consistencyLevel(ConsistencyLevel.SESSION)
-                .connectionSharingAcrossClientsEnabled(true)
-                .contentResponseOnWriteEnabled(true).buildClient();
-        instance = new CosmosDBLayer(client);
         return instance;
     }
 
-    private synchronized void init() {
-        if (db != null)
-            return;
+    private void init() {
+        if (db != null) return;
+
+        // build client if credentials present
+        if (!CONNECTION_URL.isEmpty() && !DB_KEY.isEmpty()) {
+            client = new CosmosClientBuilder()
+                    .endpoint(CONNECTION_URL)
+                    .key(DB_KEY)
+                    .consistencyLevel(ConsistencyLevel.SESSION)
+                    .buildClient();
+        } else {
+            LOG.warning("CosmosDBLayer.init: DB_URL or DB_KEY not provided; Cosmos client will not be initialized.");
+        }
+
         // ensure database exists
-        try { client.createDatabaseIfNotExists(DB_NAME); } catch (Exception ignored) {}
-        db = client.getDatabase(DB_NAME);
-        // ensure containers exist (use /id as partition key for simplicity; adapt if needed)
+        try { if (client != null) client.createDatabaseIfNotExists(DB_NAME); } catch (Exception ignored) {}
+        db = client != null ? client.getDatabase(DB_NAME) : null;
+
+        if (db == null) {
+            LOG.warning("CosmosDBLayer.init: database is null; skipping container initialization.");
+            return;
+        }
+
+        // ensure containers exist (use /id or proper partition key)
         try { db.createContainerIfNotExists(new CosmosContainerProperties("users", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("legosets", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("comments", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("auctions", "/id")); } catch (Exception ignored) {}
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("sessions", "/id")); } catch (Exception ignored) {} // Adicionar criação do container
+        try { db.createContainerIfNotExists(new CosmosContainerProperties("sessions", "/id")); } catch (Exception ignored) {}
         try { db.createContainerIfNotExists(new CosmosContainerProperties("lego_descriptions", "/legoSetId")); } catch (Exception ignored) {}
+
         users = db.getContainer("users");
         legosets = db.getContainer("legosets");
         comments = db.getContainer("comments");
         auctions = db.getContainer("auctions");
-        sessions = db.getContainer("sessions"); // Inicializar o container
+        sessions = db.getContainer("sessions");
         legoDescriptions = db.getContainer("lego_descriptions");
+        LOG.info("CosmosDBLayer.init: legoDescriptions = " + (legoDescriptions != null));
     }
 
     // --- User Methods ---
@@ -448,5 +461,38 @@ public class CosmosDBLayer {
         } catch (Exception e) {
             LOG.warning("upsertLegoDescription: err=" + e.getMessage());
         }
+    }
+
+    // retorna o documento em lego_descriptions ou null
+    @SuppressWarnings("unchecked")
+    public Map<String,Object> getLegoDescription(String legoSetId) {
+        init();
+        if (legoDescriptions == null) {
+            LOG.warning("getLegoDescription: legoDescriptions container is null");
+            return null;
+        }
+        try {
+            LOG.info("getLegoDescription: reading id=" + legoSetId + " partition=/legoSetId");
+            CosmosItemResponse<Map> resp = legoDescriptions.readItem(legoSetId, new PartitionKey(legoSetId), Map.class);
+            LOG.info("getLegoDescription: read status=" + resp.getStatusCode());
+            return resp.getItem();
+        } catch (Exception e) {
+            LOG.info("getLegoDescription: direct read failed for id=" + legoSetId + " err=" + e.getMessage());
+            // fallback a query
+            try {
+                String sql = "SELECT * FROM c WHERE c.id = '" + legoSetId + "'";
+                CosmosQueryRequestOptions opts = new CosmosQueryRequestOptions();
+                CosmosPagedIterable<Map> results = legoDescriptions.queryItems(sql, opts, Map.class);
+                if (results.iterator().hasNext()) {
+                    LOG.info("getLegoDescription: query fallback found item");
+                    return results.iterator().next();
+                } else {
+                    LOG.info("getLegoDescription: query fallback found nothing");
+                }
+            } catch (Exception ex) {
+                LOG.warning("getLegoDescription: query fallback failed for id=" + legoSetId + " err=" + ex.getMessage());
+            }
+        }
+        return null;
     }
 }
