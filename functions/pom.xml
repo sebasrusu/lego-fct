@@ -49,15 +49,7 @@
                         <os>linux</os>
                         <javaVersion>21</javaVersion>
                     </runtime>
-                    <appSettings>
-                        <property>
-                            <name>FUNCTIONS_EXTENSION_VERSION</name>
-                            <value>~4</value>
-                        </property>
-                        <property><name>DB_URL</name><value>${env.DB_URL}</value></property>
-                        <property><name>DB_KEY</name><value>${env.DB_KEY}</value></property>
-                        <property><name>DB_NAME</name><value>${env.DB_NAME}</value></property>
-                    </appSettings>
+                    <!-- appSettings removed to avoid overwriting portal settings on deploy -->
                 </configuration>
                 <executions>
                     <execution>
