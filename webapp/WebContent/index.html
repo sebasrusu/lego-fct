@@ -3,17 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <title>SCC Backend</title>
+<style>
+  #analysis { margin-top: 1rem; border:1px solid #ccc; padding:10px; max-width:800px; }
+  #analysis img { max-width:100%; height:auto; display:block; margin-bottom:8px; }
+  #analysis .tags { color:#555; font-size:0.9rem; margin-top:6px; }
+</style>
 </head>
 <body>
-<H1>Root for SCC merda no cu</H1>
+<H1>Root for SCC</H1>
 
 <p>This is a dummy page for SCC backend.</p>
 <p>Use the following links for the initial resources:</p>
 <ul>
-<li><a href="/rest/ctrl/version">/rest/ctrl/version</a>
-</li>
-<li>/rest/media/{id}
-</li>
+<li><a href="/rest/ctrl/version">/rest/ctrl/version</a></li>
+<li>/rest/media/{id}</li>
 </ul>
+
+<hr/>
+
+<h2>Visual analysis viewer</h2>
+<p>Enter a media id and click "Show analysis". The page will request the analysis endpoint and show the image + description returned by the service.</p>
+
+<label for="mediaId">Media id:</label>
+<input id="mediaId" type="text" placeholder="755BCFC64083E68CB3E316699229B43AD4219AF1" style="width:60%">
+<button id="showBtn">Show analysis</button>
+
+<div id="analysis" aria-live="polite"></div>
+
+<script>
+  // TODO: implement real Cognito auth flow and store token, or adapt to your auth
+  async function getCognitoToken() {
+    // placeholder: return stored idToken (JWT) if you set it after Cognito login
+    return localStorage.getItem('idToken') || null;
+    // Or implement actual Cognito/Amplify call here.
+  }
+
+  document.getElementById('showBtn').addEventListener('click', async () => {
+    const id = document.getElementById('mediaId').value.trim();
+    if (!id) {
+      alert('Enter a media id');
+      return;
+    }
+    const out = document.getElementById('analysis');
+    out.innerHTML = 'Loading...';
+
+    try {
+      const token = await getCognitoToken();
+      const headers = {};
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      // call the analysis endpoint (expects JSON)
+      const res = await fetch('/rest/media-analysis/' + encodeURIComponent(id), { headers, credentials: 'same-origin' });
+      if (!res.ok) {
+        const txt = await res.text().catch(()=>null);
+        out.innerHTML = 'Error fetching analysis: ' + res.status + ' ' + res.statusText + (txt ? ' - ' + escapeHtml(txt) : '');
+        return;
+      }
+      const json = await res.json();
+      // build HTML: image + description + tags
+      let html = '<img src="/rest/media/' + encodeURIComponent(id) + '" alt="media">';
+      html += '<h3>' + escapeHtml(json.description || '') + '</h3>';
+      if (json.tags && Array.isArray(json.tags) && json.tags.length) {
+        html += '<div class="tags">' + json.tags.map(t => '<span style="margin-right:6px;background:#eef;border-radius:4px;padding:2px 6px;">' + escapeHtml(t) + '</span>').join(' ') + '</div>';
+      }
+      out.innerHTML = html;
+
+    } catch (err) {
+      out.innerHTML = 'Error: ' + (err.message || err);
+    }
+  });
+
+  // small helper if you later use JSON mode
+  function escapeHtml(s) {
+    return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+  }
+</script>
 </body>
 </html>

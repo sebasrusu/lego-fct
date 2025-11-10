@@ -17,6 +17,8 @@ public class MainApplication extends Application {
         resources.add(LegoSetResource.class);
         resources.add(AuctionResource.class);
         resources.add(AuthResource.class);
+        resources.add(MediaAnalysisResource.class);
+
     }
 
     @Override

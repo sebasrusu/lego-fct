@@ -33,3 +33,16 @@ curl -s -X POST "https://cc2526.azurewebsites.net/rest/media" \
 
 id=$(tr -d '"' < /tmp/media_resp.txt | tr -d '\n')
 echo "uploaded id = $id"
+
+
+
+
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+usual deploy>
+
+cd /home/ydigit/NOVAFCT/cloud/lego-fct
+mvn -U -pl :cc2526-webapp -DskipTests clean package
+
+or 
+
+az webapp deploy --resource-group cc2526 --name cc2526 --src-path webapp/target/cc2526-webapp-1.0.war
