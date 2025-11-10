@@ -30,12 +30,33 @@
 
 <div id="analysis" aria-live="polite"></div>
 
+<section id="api-get-links" style="margin-top:1rem;">
+  <h2>GET Endpoints (full URLs)</h2>
+  <ul>
+    <li><a href="https://cc2526.azurewebsites.net/rest/ctrl/version">https://cc2526.azurewebsites.net/rest/ctrl/version</a></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/media">https://cc2526.azurewebsites.net/rest/media</a></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/media/&lt;media_id&gt;</code></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/media-analysis/&lt;media_id&gt;</code></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/user">https://cc2526.azurewebsites.net/rest/user</a></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/user/&lt;user_id&gt;</code></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/user/&lt;user_id&gt;/auctions</code></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/user/me">https://cc2526.azurewebsites.net/rest/user/me</a></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/legoset">https://cc2526.azurewebsites.net/rest/legoset</a></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/legoset/&lt;legoset_id&gt;</code></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/legoset?userId=&lt;id_user&gt;</code></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/legoset?recent=1&amp;st=0&amp;len=10</code></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/legoset/&lt;legoset_id&gt;/comment</code></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/auction">https://cc2526.azurewebsites.net/rest/auction</a></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/auction/&lt;auction_id&gt;</code></li>
+    <li><code>https://cc2526.azurewebsites.net/rest/auction?legoSetId=&lt;legoset_id&gt;</code></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/auction/open">https://cc2526.azurewebsites.net/rest/auction/open</a></li>
+    <li><a href="https://cc2526.azurewebsites.net/rest/auction/closed">https://cc2526.azurewebsites.net/rest/auction/closed</a></li>
+  </ul>
+</section>
+
 <script>
-  // TODO: implement real Cognito auth flow and store token, or adapt to your auth
   async function getCognitoToken() {
-    // placeholder: return stored idToken (JWT) if you set it after Cognito login
     return localStorage.getItem('idToken') || null;
-    // Or implement actual Cognito/Amplify call here.
   }
 
   document.getElementById('showBtn').addEventListener('click', async () => {
@@ -52,7 +73,6 @@
       const headers = {};
       if (token) headers['Authorization'] = 'Bearer ' + token;
 
-      // call the analysis endpoint (expects JSON)
       const res = await fetch('/rest/media-analysis/' + encodeURIComponent(id), { headers, credentials: 'same-origin' });
       if (!res.ok) {
         const txt = await res.text().catch(()=>null);
@@ -60,7 +80,6 @@
         return;
       }
       const json = await res.json();
-      // build HTML: image + description + tags
       let html = '<img src="/rest/media/' + encodeURIComponent(id) + '" alt="media">';
       html += '<h3>' + escapeHtml(json.description || '') + '</h3>';
       if (json.tags && Array.isArray(json.tags) && json.tags.length) {
@@ -73,7 +92,6 @@
     }
   });
 
-  // small helper if you later use JSON mode
   function escapeHtml(s) {
     return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
   }

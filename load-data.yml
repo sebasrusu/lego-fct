@@ -1,5 +1,7 @@
 config:
   target: 'https://cc2526.azurewebsites.net'
+  http:
+    timeout: 1000
   plugins:
     metrics-by-endpoint:
       useOnlyRequestNames: true
