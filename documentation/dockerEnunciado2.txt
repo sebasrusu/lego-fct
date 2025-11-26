@@ -35,7 +35,7 @@ docker rm test-local
 # Criar o secret (se ainda não foi criado)
 kubectl create secret generic azure-secrets --from-env-file=.env 2>/dev/null || echo "Secret já existe"
 
-# Ligar ACR ao AKS (pode ser necessário esperar)
+# Ligar ACR ao AKS (pode ser n##poua#ecessário esperar)
 az aks update \
   --name lego-aks-cluster \
   --resource-group cc2526 \
@@ -47,3 +47,25 @@ kubectl apply -f k8s/deployment.yaml
 # Verificar pods
 kubectl get pods
 kubectl get svc
+
+
+
+
+
+
+#####poupar guita Mare 
+#parar
+az aks stop \
+  --resource-group cc2526 \
+  --name lego-aks-cluster
+
+echo " Cluster parado!"
+
+
+#levantar
+az aks start \
+  --resource-group cc2526 \
+  --name lego-aks-cluster
+
+# Aguardar nós ready
+kubectl get nodes -w
