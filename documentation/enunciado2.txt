@@ -1,0 +1,42 @@
+Cloud Computing – 2025/26
+Project 2
+Project to be implemented in groups of up to three elements. Students are allowed to form
+new groups in this second project.
+1. Description
+The goal of the project is to experiment how to avoid vendor lock-in when using a cloud
+platform. To this end, in this second project, students will modify their solution from the
+first project to use technologies that can be deployed in any cloud platform that supports
+Docker containers and Kubernetes.
+The solution of the second project should support deploying the following
+services/functions in Kubernetes – we will be using Azure Kubernetes Service, but the
+solution should be able to run in any Kubernetes service:
+• (mandatory) Deploying the application server as a set of container replicas;
+• (mandatory) Deploying a local caching server – Redis (instead of relying on
+Azure Redis Cache);
+• (mandatory) Use a persistent volume to store media data (replacing the Blob
+Storage);
+• (optional) Replace Cosmos DB by a local database – suggestions are MongoDB
+or PostgreSQL;
+• (optional) Replace timer and http-triggered Azure Functions by HTTP servers
+and Kubernetes cronjob functions;
+• (mandatory) Test your deployment using artillery.
+• (optional) Deploy the test system in Azure Container Instances and collect results
+with clients running in different data centers.
+Supporting geo-replication is not expected in this second project.
+Check lab 9 for details on the steps necessary to achieve these goals.
+1.1 Environment
+This project should be tested using Azure Kubernetes service.
+NOTE: Be careful with the cost when you leave services/resources running, in particular
+those that are more expensive, such as VM in Azure Kubernetes service.
+Be careful in the selection of the VMs to use for your cluster.
+2. REPORT
+The project report should include: a) 2 pages describing the project solution; b) 2 pages
+with a summary of the results obtained (including some info on how the results compare
+to the ones obtained in project 1); and c) the necessary pages for the following annex: (1)
+Dockerfiles created; (2) Kubernetes deployment files; (3) anything else relevant for
+running the solution (11pt font, A4 with decent margins).
+3. GRADING
+The mandatory part of the project will be valued in up to 14 point. Maximum grading
+from the optional parts is 6 points.
+4. IMPORTANT DATES
+5/December – delivery of the scripts and report.

@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lego-webapp
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lego-webapp
+  template:
+    metadata:
+      labels:
+        app: lego-webapp
+    spec:
+      containers:
+      - name: webapp
+        image: cc2526acr.azurecr.io/lego-webapp:v1
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: azure-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /rest/ctrl/version
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lego-webapp-service
+  namespace: default
+spec:
+  type: LoadBalancer
+  selector:
+    app: lego-webapp
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
