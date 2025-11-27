@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: legoapp
-          image: <TEU_DOCKERHUB>/cc2526-app:latest
+          image: cc2526acr.azurecr.io/lego-webapp:v1
           ports:
             - containerPort: 8080
           volumeMounts:
