@@ -14,9 +14,13 @@ spec:
     spec:
       containers:
         - name: legoapp
-          image: cc2526acr.azurecr.io/lego-webapp:v1
+          image: cc2526acr.azurecr.io/lego-webapp:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
+          env:
+            - name: MEDIA_PATH
+              value: /media
           volumeMounts:
             - name: media-volume
               mountPath: /media

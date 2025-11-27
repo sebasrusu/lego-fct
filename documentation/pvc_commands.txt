@@ -1,0 +1,27 @@
+Present the commands related to Persistent Volume Claims (PVC)
+
+Some of the commands are already defined on deploy-complete.sh
+
+After changing code, redeploy with this:
+mvn clean package -f webapp/pom.xml
+docker build -t cc2526acr.azurecr.io/lego-webapp:latest .
+az acr login -n cc2526acr
+docker push cc2526acr.azurecr.io/lego-webapp:latest
+
+kubectl rollout restart deployment/legoapp
+kubectl get pods
+
+To confirm that we are using the latest image:
+kubectl describe deploy legoapp | grep -i image
+
+Check the External-IP of the service, for postman:
+kubectl get svc legoapp-service
+
+Test PVC:
+POST http://"EXTERNAL_IP"/rest/media  body:binary, put image on postman and key: Content-Type Value:image/jpeg
+GET http://"EXTERNAL_IP"/rest/media/"id_image"
+
+between POST and GET we can restart the pod to test persistence:
+kubectl delete pod -l app=legoapp
+kubectl get pods
+
