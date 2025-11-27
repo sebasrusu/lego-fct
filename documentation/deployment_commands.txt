@@ -1,0 +1,51 @@
+File Windows para Linux:
+mkdir -p ~/.kube
+cp /mnt/c/Users/35193/.kube/config ~/.kube/config
+
+Informar explicitamente ao kubectl qual file de config usar (opcional):
+export KUBECONFIG=~/.kube/config
+
+ver server:
+kubectl config view --minify
+
+Testar ligação do cluster:
+kubectl cluster-info --request-timeout=10s
+kubectl get nodes --request-timeout=10s
+kubectl get svc --request-timeout=10s
+
+verificar repositórios no ACR:
+az acr repository list --name cc2526acr -o table
+
+Ver tags de um repositório no ACR:
+az acr repository show-tags --name cc2526acr --repository cc2526app -o table
+
+Verificar storage classes disponiveis, foi usado o default "managed-csi" no pvc-media.yaml:
+kubectl get storageclass
+
+Aplicar cluster:
+kubectl apply -f app-deployment.yaml
+kubectl apply -f app-service.yaml
+kubectl apply -f pvc-media.yaml
+
+Verificar pods, services, deploys e pvcs:
+kubectl get pods
+kubectl get svc
+kubectl get deploy
+kubectl get pvc
+
+Para dar delete de deployments,caso necessario:
+kubectl delete deployment "nome do deployment"
+kubectl delete svc "nome do service"
+
+
+
+
+
+
+
+
+
+
+
+
+
