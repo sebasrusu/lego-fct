@@ -91,7 +91,17 @@ echo " Para parar o cluster:"
 echo "   ./scripts/stop-cluster.sh"
 echo ""
 
+#pvc test and deploy
+kubectl apply -f k8s7pvc-media.yaml
+kubectl get pvc media-pvc --watch
+kubectl get pvc
+#  Restart do deployment
+kubectl rollout restart deployment/lego-webapp
+kubectl get pods
 
+kubectl describe deploy lego-webapp | grep -i image
+
+kubectl get svc lego-webapp-service
 
 # chmod +x scripts/deploy-complete.sh
 # ./scripts/deploy-complete.sh

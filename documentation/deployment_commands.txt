@@ -34,9 +34,8 @@ kubectl get deploy
 kubectl get pvc
 
 Para dar delete de deployments,caso necessario:
-kubectl delete deployment "nome do deployment"
-kubectl delete svc "nome do service"
-
+kubectl delete deployment legoapp
+kubectl delete svc legoapp-service
 
 
 
