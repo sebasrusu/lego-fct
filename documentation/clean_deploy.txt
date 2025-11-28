@@ -1,0 +1,7 @@
+Full cleanup of all deployed resources in the Kubernetes cluster:
+
+kubectl delete all --all
+kubectl delete pvc --all
+kubectl delete pv --all
+kubectl delete secret azure-secrets
+./scripts/clusterscripts/stop-cluster.sh
