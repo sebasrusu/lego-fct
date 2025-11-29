@@ -1,27 +1,28 @@
 version: '3.8'
 
 services:
-  # PostgreSQL (substitui Cosmos DB)
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16
     container_name: lego-postgres
+    platform: linux/amd64
+    restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-legoapp}
-      POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: senhaSegura123
+      POSTGRES_USER: admin
+      POSTGRES_DB: legoapp
+      POSTGRES_PORT: 5432
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d legoapp"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - lego-network
 
-  # Redis (cache)
   redis:
     image: redis:7-alpine
     container_name: lego-redis
@@ -37,23 +38,17 @@ services:
     networks:
       - lego-network
 
-  # Aplicação principal
   webapp:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: lego-webapp
     environment:
-      # Database
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-legoapp}
-      DB_USER: ${DB_USER:-admin}
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
-      # Redis
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/legoapp
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: senhaSegura123
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      # Load from .env
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8080:8080"
@@ -63,7 +58,6 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      # PVC para media
       - media-storage:/app/media
     networks:
       - lego-network
