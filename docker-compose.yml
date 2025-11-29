@@ -1,12 +1,82 @@
 version: '3.8'
 
 services:
-  lego-webapp:
-    build: 
+  # PostgreSQL (substitui Cosmos DB)
+  postgres:
+    image: postgres:15-alpine
+    container_name: lego-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-legoapp}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lego-network
+
+  # Redis (cache)
+  redis:
+    image: redis:7-alpine
+    container_name: lego-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lego-network
+
+  # Aplicação principal
+  webapp:
+    build:
       context: .
       dockerfile: Dockerfile
+    container_name: lego-webapp
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-legoapp}
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Load from .env
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8080:8080"
-    env_file:
-      - .env
-    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # PVC para media
+      - media-storage:/app/media
+    networks:
+      - lego-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  media-storage:
+    driver: local
+
+networks:
+  lego-network:
+    driver: bridge
