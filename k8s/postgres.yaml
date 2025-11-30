@@ -26,12 +26,17 @@ spec:
       containers:
         - name: postgres
           image: postgres:16
-          environment:
-            DB_HOST: jdbc:postgresql://postgres:5432/legoapp
-            DB_PORT: 5432
-            DB_NAME: legoapp
-            DB_USER: admin
-            DB_PASSWORD: senhaSegura123
+          env:
+            - name: DB_HOST
+              value: "jdbc:postgresql://postgres:5432/legoapp"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "legoapp"
+            - name: DB_USER
+              value: "admin"
+            - name: DB_PASSWORD
+              value: "senhaSegura123"
           ports:
             - containerPort: 5432
           volumeMounts:
