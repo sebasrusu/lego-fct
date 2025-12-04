@@ -1,22 +1,21 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16
-    container_name: lego-postgres
+  mongo:
+    image: mongo:7
+    container_name: lego-mongo
     platform: linux/amd64
     restart: always
     environment:
-      POSTGRES_PASSWORD: senhaSegura123
-      POSTGRES_USER: admin
-      POSTGRES_DB: legoapp
-      POSTGRES_PORT: 5432
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: senhaSegura123
+      MONGO_INITDB_DATABASE: ccdb
     ports:
-      - "5432:5432"
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d legoapp"]
+      test: ["CMD", "mongosh", "--username", "admin", "--password", "senhaSegura123", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,16 +43,16 @@ services:
       dockerfile: Dockerfile
     container_name: lego-webapp
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/legoapp
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: senhaSegura123
+      DB_URL: mongodb://admin:senhaSegura123@mongo:27017/ccdb?authSource=admin
+      DB_NAME: ccdb
+      DB_KEY: ""
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
+      mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -64,7 +63,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres-data:
+  mongo-data:
     driver: local
   redis-data:
     driver: local

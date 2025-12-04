@@ -94,7 +94,7 @@ deploy_local() {
     echo "ERROR: File .env.compose not found!"
     echo "Creating .env.compose with default values..."
     cat > "$ENV_FILE" << 'EOF'
-DB_NAME=legoapp
+DB_NAME=ccdb
 DB_USER=admin
 DB_PASSWORD=senhaSegura123
 SPRING_PROFILES_ACTIVE=prod
@@ -155,11 +155,11 @@ EOF
   echo "Endpoints:"
   echo "   WebApp:   http://localhost:8080"
   echo "   Redis:    localhost:6379"
-  echo "   Postgres: localhost:5432"
+  echo "   MongoDB: localhost:27017"
   echo ""
   echo "Useful commands:"
   echo "   View logs:     $DOCKER_COMPOSE -f $COMPOSE_FILE logs -f webapp"
-  echo "   View postgres: $DOCKER_COMPOSE -f $COMPOSE_FILE logs -f postgres"
+  echo "   View mongo: $DOCKER_COMPOSE -f $COMPOSE_FILE logs -f mongo"
   echo "   View redis:    $DOCKER_COMPOSE -f $COMPOSE_FILE logs -f redis"
   echo ""
   return 0
@@ -297,9 +297,9 @@ deploy_kubernetes() {
     kubectl apply -f "$K8S_DIR/pvc-media.yaml" -n "$K8S_NAMESPACE"
   }
   
-  [ -f "$K8S_DIR/postgres.yaml" ] && {
-    echo "  + PostgreSQL..."
-    kubectl apply -f "$K8S_DIR/postgres.yaml" -n "$K8S_NAMESPACE"
+  [ -f "$K8S_DIR/mongodb.yaml" ] && {
+    echo "  + MongoDB..."
+    kubectl apply -f "$K8S_DIR/mongodb.yaml" -n "$K8S_NAMESPACE"
   }
   
   [ -f "$K8S_DIR/redis.yaml" ] && {
@@ -433,7 +433,7 @@ show_status() {
 # ===== LOGS =====
 show_logs_local() {
   echo ""
-  read -p "Which service? (webapp/postgres/redis/all): " service
+  read -p "Which service? (webapp/mongo/redis/all): " service
   case "$service" in
     all)
       $DOCKER_COMPOSE -f "$COMPOSE_FILE" logs -f
