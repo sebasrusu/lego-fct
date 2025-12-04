@@ -3,71 +3,66 @@ package cc.db;
 import cc.data.auction.AuctionDAO;
 import cc.data.bid.Bid;
 import cc.data.comment.CommentDAO;
-import cc.data.comment.Comment;
 import cc.data.lego.LegoSetDAO;
 import cc.data.user.UserDAO;
 import cc.data.auth.Session;
-import cc.utils.AzureProperties;
-import com.azure.cosmos.ConsistencyLevel;
-import com.azure.cosmos.CosmosClient;
-import com.azure.cosmos.CosmosClientBuilder;
-import com.azure.cosmos.CosmosContainer;
-import com.azure.cosmos.CosmosDatabase;
-import com.azure.cosmos.models.*;
-import com.azure.cosmos.util.CosmosPagedIterable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicInteger;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.*;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.ReplaceOptions;
+import com.mongodb.client.model.Sorts;
+import org.bson.Document;
+
+import java.util.*;
 import java.util.logging.Logger;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.stream.Collectors;
+
 public class CosmosDBLayer {
+
     private static final Logger LOG = Logger.getLogger(CosmosDBLayer.class.getName());
 
     // singleton instance
     private static CosmosDBLayer instance;
 
-    // try environment first, then fallback to azurekeys.props
+    // mantemos estes nomes para reutilizar as envs DB_URL e DB_NAME
     private static final String CONNECTION_URL;
-    private static final String DB_KEY;
+    private static final String DB_KEY; // já não é usado, mas mantemos para compatibilidade
     private static final String DB_NAME;
 
-    // shared Cosmos objects (declare once)
-    private CosmosClient client;
-    private CosmosDatabase db;
-    private CosmosContainer legoDescriptions;
-    private CosmosContainer users;
-    private CosmosContainer legosets;
-    private CosmosContainer comments;
-    private CosmosContainer auctions;
-    private CosmosContainer sessions;
-    
     static {
         String url = System.getenv("DB_URL");
-        String key = System.getenv("DB_KEY");
         String dbName = System.getenv("DB_NAME");
-        try {
-            Properties p = AzureProperties.getProperties();
-            if ((url == null || url.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_URL) != null)
-                url = p.getProperty(AzureProperties.COSMOSDB_URL);
-            if ((key == null || key.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_KEY) != null)
-                key = p.getProperty(AzureProperties.COSMOSDB_KEY);
-            if ((dbName == null || dbName.isEmpty()) && p.getProperty(AzureProperties.COSMOSDB_DATABASE) != null)
-                dbName = p.getProperty(AzureProperties.COSMOSDB_DATABASE);
-        } catch (Exception ignored) {}
-        CONNECTION_URL = url != null ? url : "";
-        DB_KEY = key != null ? key : "";
-        DB_NAME = dbName != null ? dbName : "ccdb";
+        String key = System.getenv("DB_KEY"); // ignorado para Mongo
+
+        CONNECTION_URL = (url != null && !url.isBlank())
+                ? url
+                : "mongodb://admin:senhaSegura123@localhost:27017/ccdb?authSource=admin";
+        DB_NAME = (dbName != null && !dbName.isBlank()) ? dbName : "ccdb";
+        DB_KEY = (key != null) ? key : "";
+
+        LOG.info("CosmosDBLayer(Mongo): DB_URL=" + CONNECTION_URL + " DB_NAME=" + DB_NAME);
     }
+
+    // Mongo client & collections
+    private MongoClient client;
+    private MongoDatabase db;
+
+    private MongoCollection<Document> users;
+    private MongoCollection<Document> legosets;
+    private MongoCollection<Document> comments;
+    private MongoCollection<Document> auctions;
+    private MongoCollection<Document> sessions;
+    private MongoCollection<Document> legoDescriptions;
+
+    private final ObjectMapper mapper;
 
     private CosmosDBLayer() {
-        // private ctor for singleton
+        mapper = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
-    // singleton accessor used by resources
     public static synchronized CosmosDBLayer getInstance() {
         if (instance == null) {
             instance = new CosmosDBLayer();
@@ -76,73 +71,123 @@ public class CosmosDBLayer {
         return instance;
     }
 
-    private void init() {
+    private synchronized void init() {
         if (db != null) return;
 
-        // build client if credentials present
-        if (!CONNECTION_URL.isEmpty() && !DB_KEY.isEmpty()) {
-            client = new CosmosClientBuilder()
-                    .endpoint(CONNECTION_URL)
-                    .key(DB_KEY)
-                    .consistencyLevel(ConsistencyLevel.SESSION)
-                    .buildClient();
-        } else {
-            LOG.warning("CosmosDBLayer.init: DB_URL or DB_KEY not provided; Cosmos client will not be initialized.");
-        }
-
-        // ensure database exists
-        try { if (client != null) client.createDatabaseIfNotExists(DB_NAME); } catch (Exception ignored) {}
-        db = client != null ? client.getDatabase(DB_NAME) : null;
-
-        if (db == null) {
-            LOG.warning("CosmosDBLayer.init: database is null; skipping container initialization.");
+        if (CONNECTION_URL == null || CONNECTION_URL.isBlank()) {
+            LOG.severe("CosmosDBLayer(Mongo).init: DB_URL not provided");
             return;
         }
 
-        // ensure containers exist (use /id or proper partition key)
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("users", "/id")); } catch (Exception ignored) {}
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("legosets", "/id")); } catch (Exception ignored) {}
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("comments", "/id")); } catch (Exception ignored) {}
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("auctions", "/id")); } catch (Exception ignored) {}
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("sessions", "/id")); } catch (Exception ignored) {}
-        try { db.createContainerIfNotExists(new CosmosContainerProperties("lego_descriptions", "/legoSetId")); } catch (Exception ignored) {}
+        LOG.info("CosmosDBLayer(Mongo).init: connecting to " + CONNECTION_URL);
+        client = MongoClients.create(CONNECTION_URL);
+        db = client.getDatabase(DB_NAME);
 
-        users = db.getContainer("users");
-        legosets = db.getContainer("legosets");
-        comments = db.getContainer("comments");
-        auctions = db.getContainer("auctions");
-        sessions = db.getContainer("sessions");
-        legoDescriptions = db.getContainer("lego_descriptions");
-        LOG.info("CosmosDBLayer.init: legoDescriptions = " + (legoDescriptions != null));
+        users = db.getCollection("users");
+        legosets = db.getCollection("legosets");
+        comments = db.getCollection("comments");
+        auctions = db.getCollection("auctions");
+        sessions = db.getCollection("sessions");
+        legoDescriptions = db.getCollection("lego_descriptions");
+
+        // índices úteis (opcional)
+        users.createIndex(new Document("nickname", 1));
+        legosets.createIndex(new Document("ownerId", 1));
+        comments.createIndex(new Document("legoSetId", 1));
+        comments.createIndex(new Document("userId", 1));
+        auctions.createIndex(new Document("sellerId", 1));
+        auctions.createIndex(new Document("legoSetId", 1));
     }
 
-    // --- User Methods ---
+    // ==================== Helpers de conversão ====================
+
+    private <T> Document toDoc(T obj) {
+        if (obj == null) return null;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = mapper.convertValue(obj, Map.class);
+        return new Document(map);
+    }
+
+    private <T> T fromDoc(Document doc, Class<T> clazz) {
+        if (doc == null) return null;
+        // remover _id para não chocar com o campo id do DAO
+        Object _id = doc.get("_id");
+        if (_id != null && !doc.containsKey("id")) {
+            doc.put("id", _id.toString());
+        }
+        return mapper.convertValue(doc, clazz);
+    }
+
+    private <T> List<T> toList(FindIterable<Document> docs, Class<T> clazz) {
+        List<T> out = new ArrayList<>();
+        for (Document d : docs) {
+            out.add(fromDoc(d, clazz));
+        }
+        return out;
+    }
+
+    // ==================== Users ====================
+
     public UserDAO createUser(UserDAO user) {
         init();
-        return users.createItem(user).getItem();
+        Document doc = toDoc(user);
+        if (user.getId() != null) {
+            doc.put("_id", user.getId());
+        }
+        users.insertOne(doc);
+        return fromDoc(doc, UserDAO.class);
     }
 
     public UserDAO getUser(String id) {
         init();
-        CosmosPagedIterable<UserDAO> result = users.queryItems("SELECT * FROM c WHERE c.id=\"" + id + "\"",
-                new CosmosQueryRequestOptions(), UserDAO.class);
-        return result.iterator().hasNext() ? result.iterator().next() : null;
+        Document doc = users.find(Filters.eq("_id", id)).first();
+        if (doc == null) {
+            doc = users.find(Filters.eq("id", id)).first();
+        }
+        return fromDoc(doc, UserDAO.class);
     }
 
-    public CosmosPagedIterable<UserDAO> listUsers() {
+    // antes era CosmosPagedIterable<UserDAO>; Iterable chega para os resources
+    public Iterable<UserDAO> listUsers() {
         init();
-        return users.queryItems("SELECT * FROM c", new CosmosQueryRequestOptions(), UserDAO.class);
+        return toList(users.find(), UserDAO.class);
+    }
+
+    public AuctionDAO updateAuction(AuctionDAO auction) {
+        init();
+        if (auction == null || auction.getId() == null) {
+            LOG.warning("updateAuction: auction or auction.id is null");
+            return null;
+        }
+
+        Document doc = toDoc(auction);
+        doc.put("_id", auction.getId());
+
+        auctions.replaceOne(
+                Filters.eq("_id", auction.getId()),
+                doc,
+                new ReplaceOptions().upsert(true)
+        );
+
+        return auction;
     }
 
     public UserDAO updateUser(UserDAO user) {
         init();
-        return users.upsertItem(user, new PartitionKey(user.getId()), new CosmosItemRequestOptions()).getItem();
+        Document doc = toDoc(user);
+        String id = user.getId();
+        if (id != null) {
+            doc.put("_id", id);
+        }
+        users.replaceOne(Filters.eq("_id", id), doc, new ReplaceOptions().upsert(true));
+        return user;
     }
 
     public void deleteUser(String id) {
         init();
         String deletedUserId = "deleted-user";
 
+        // reatribuir tudo ao utilizador "deleted-user"
         for (LegoSetDAO ls : listLegoSetsOfUser(id)) {
             ls.setOwnerId(deletedUserId);
             updateLegoSet(ls);
@@ -158,19 +203,16 @@ public class CosmosDBLayer {
             updateAuction(a);
         }
 
-        users.deleteItem(id, new PartitionKey(id), new CosmosItemRequestOptions());
+        users.deleteOne(Filters.eq("_id", id));
     }
-
 
     public void createDeletedUserIfNotExists() {
         init();
         String deletedUserId = "deleted-user";
-
         UserDAO u = getUser(deletedUserId);
         if (u == null) {
             UserDAO deletedUser = new UserDAO();
             deletedUser.setId(deletedUserId);
-            //deletedUser.setNickname("Deleted User");
             deletedUser.setName("Deleted User");
             deletedUser.setPwd("");
             deletedUser.setPhotoId(null);
@@ -178,331 +220,290 @@ public class CosmosDBLayer {
             createUser(deletedUser);
         }
     }
-    public CosmosPagedIterable<CommentDAO> listCommentsByUser(String userId) {
+
+    public Iterable<CommentDAO> listCommentsByUser(String userId) {
         init();
-        return comments.queryItems("SELECT * FROM c WHERE c.userId = '" + userId + "'", null, CommentDAO.class);
+        return toList(
+                comments.find(Filters.eq("userId", userId)),
+                CommentDAO.class
+        );
     }
 
-    public CosmosPagedIterable<AuctionDAO> listAuctionsOfUser(String userId) {
+    public Iterable<AuctionDAO> listAuctionsOfUser(String userId) {
         init();
-        return auctions.queryItems("SELECT * FROM c WHERE c.sellerId = '" + userId + "'", null, AuctionDAO.class);
+        return toList(
+                auctions.find(Filters.eq("sellerId", userId)),
+                AuctionDAO.class
+        );
     }
 
-    public CommentDAO updateComment(CommentDAO comment) {
-        init();
-        return comments.replaceItem(
-                comment,
-                comment.getId(),
-                new PartitionKey(comment.getId()),
-                null
-        ).getItem();
-    }
-
-    public AuctionDAO updateAuction(AuctionDAO auction) {
-        init();
-        return auctions.replaceItem(
-                auction,
-                auction.getId(),
-                new PartitionKey(auction.getId()),
-                null
-        ).getItem();
-    }
-    
     public UserDAO findUserByNickname(String name) {
         init();
-
-        String sql = "SELECT * FROM c WHERE c.nickname = @nickname";
-        List<SqlParameter> params = List.of(new SqlParameter("@nickname", name));
-
-        SqlQuerySpec spec = new SqlQuerySpec(sql, params);
-
-        CosmosPagedIterable<UserDAO> result =
-                users.queryItems(spec, new CosmosQueryRequestOptions(), UserDAO.class);
-
-        return result.iterator().hasNext() ? result.iterator().next() : null;
+        Document doc = users.find(Filters.eq("nickname", name)).first();
+        return fromDoc(doc, UserDAO.class);
     }
 
-    // --- LegoSet Methods ---
+    // ==================== LegoSets ====================
+
     public LegoSetDAO createLegoSet(LegoSetDAO ls) {
         init();
-        return legosets.createItem(ls).getItem();
+        Document doc = toDoc(ls);
+        if (ls.getId() != null) {
+            doc.put("_id", ls.getId());
+        }
+        legosets.insertOne(doc);
+        return ls;
     }
 
     public LegoSetDAO getLegoSet(String id) {
         init();
-        var results = legosets.queryItems(
-                "SELECT * FROM c WHERE c.id='" + id + "'",
-                null,
-                LegoSetDAO.class
-        );
-        return results.iterator().hasNext()
-                ? results.iterator().next()
-                : null;
+        Document doc = legosets.find(Filters.eq("_id", id)).first();
+        if (doc == null) {
+            doc = legosets.find(Filters.eq("id", id)).first();
+        }
+        return fromDoc(doc, LegoSetDAO.class);
     }
 
-    public CosmosPagedIterable<LegoSetDAO> listLegoSets() {
+    public Iterable<LegoSetDAO> listLegoSets() {
         init();
-        return legosets.queryItems("SELECT * FROM c", null, LegoSetDAO.class);
+        return toList(legosets.find(), LegoSetDAO.class);
     }
 
     public LegoSetDAO updateLegoSet(LegoSetDAO ls) {
         init();
-        return legosets.replaceItem(ls, ls.getId(), new PartitionKey(ls.getId()), new CosmosItemRequestOptions()).getItem();
+        Document doc = toDoc(ls);
+        String id = ls.getId();
+        if (id != null) {
+            doc.put("_id", id);
+        }
+        legosets.replaceOne(Filters.eq("_id", id), doc, new ReplaceOptions().upsert(true));
+        return ls;
     }
 
     public void deleteLegoSet(String id) {
         init();
-        legosets.deleteItem(id, new PartitionKey(id), new CosmosItemRequestOptions());
+        legosets.deleteOne(Filters.eq("_id", id));
     }
 
-    public CosmosPagedIterable<LegoSetDAO> listLegoSetsOfUser(String userId) {
+    public Iterable<LegoSetDAO> listLegoSetsOfUser(String userId) {
         init();
-        return legosets.queryItems("SELECT * FROM c WHERE c.ownerId = '" + userId + "'", null, LegoSetDAO.class);
+        return toList(
+                legosets.find(Filters.eq("ownerId", userId)),
+                LegoSetDAO.class
+        );
     }
 
-    public CosmosPagedIterable<LegoSetDAO> listMostRecentLegoSets(int offset, int limit) {
+    public Iterable<LegoSetDAO> listMostRecentLegoSets(int offset, int limit) {
         init();
-        return legosets.queryItems("SELECT * FROM c ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit, null,
-                LegoSetDAO.class);
+        // se não houver createdAt, usamos _id como fallback
+        FindIterable<Document> it = legosets
+                .find()
+                .sort(Sorts.descending("createdAt", "_id"))
+                .skip(offset)
+                .limit(limit);
+        return toList(it, LegoSetDAO.class);
     }
 
-    // --- Comment Methods (mínimo para cache) ---
-    // Container já inicializado em init(): comments
+    // ==================== Comments ====================
+
     public CommentDAO createComment(CommentDAO dao) {
         init();
-        // PartitionKey = legoSetId (assumindo modelo)
-        comments.createItem(dao, new PartitionKey(dao.getLegoSetId()), new CosmosItemRequestOptions());
+        Document doc = toDoc(dao);
+        if (dao.getId() != null) {
+            doc.put("_id", dao.getId());
+        }
+        comments.insertOne(doc);
         return dao;
     }
 
     public List<CommentDAO> listCommentsByLegoSet(String legoSetId) {
         init();
         if (legoSetId == null || legoSetId.isBlank()) return Collections.emptyList();
-        String q = "SELECT * FROM c WHERE c.legoSetId = @lid";
-        SqlQuerySpec spec = new SqlQuerySpec(q, Collections.singletonList(new SqlParameter("@lid", legoSetId)));
-        List<CommentDAO> out = new ArrayList<>();
-        comments.queryItems(spec, new CosmosQueryRequestOptions(), CommentDAO.class)
-                .forEach(out::add);
-        return out;
+        FindIterable<Document> it = comments.find(Filters.eq("legoSetId", legoSetId));
+        return toList(it, CommentDAO.class);
     }
 
-    // --- Auction Methods ---
+    public CommentDAO updateComment(CommentDAO comment) {
+        init();
+        Document doc = toDoc(comment);
+        String id = comment.getId();
+        if (id != null) {
+            doc.put("_id", id);
+        }
+        comments.replaceOne(Filters.eq("_id", id), doc, new ReplaceOptions().upsert(true));
+        return comment;
+    }
+
+    // ==================== Auctions ====================
+
     public AuctionDAO createAuction(AuctionDAO auction) {
         init();
-        try {
-            LOG.info("createAuction: upserting auction id=" + auction.getId() + " legoSetId=" + auction.getLegoSetId() + " sellerId=" + auction.getSellerId());
-            CosmosItemResponse<AuctionDAO> resp = auctions.upsertItem(auction);
-            LOG.info("createAuction: upserted id=" + resp.getItem().getId() + " statusCode=" + resp.getStatusCode() + " _rid=" + resp.getItem().get_rid());
-            return resp.getItem();
-        } catch (Exception e) {
-            LOG.severe("createAuction: err=" + e.getMessage());
-            throw e;
+        Document doc = toDoc(auction);
+        if (auction.getId() != null) {
+            doc.put("_id", auction.getId());
         }
+        auctions.replaceOne(
+                Filters.eq("_id", auction.getId()),
+                doc,
+                new ReplaceOptions().upsert(true)
+        );
+        return auction;
     }
 
-    public CosmosPagedIterable<AuctionDAO> listAuctions(int offset, int limit) {
+    public Iterable<AuctionDAO> listAuctions(int offset, int limit) {
         init();
-        String sql = "SELECT * FROM c ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit;
-        LOG.info("listAuctions: sql=" + sql);
-        return auctions.queryItems(sql, new CosmosQueryRequestOptions(), AuctionDAO.class);
+        FindIterable<Document> it = auctions
+                .find()
+                .sort(Sorts.descending("closeDate", "_id"))
+                .skip(offset)
+                .limit(limit);
+        return toList(it, AuctionDAO.class);
     }
 
-    // return open auctions: not closed and closeDate > now
-    public CosmosPagedIterable<AuctionDAO> listOpenAuctions(int offset, int limit) {
+    // open: closed != true AND closeDate > now
+    public Iterable<AuctionDAO> listOpenAuctions(int offset, int limit) {
         init();
         long now = System.currentTimeMillis();
-        String sql = "SELECT * FROM c WHERE (c.closed != true OR IS_NULL(c.closed)) AND c.closeDate > " + now
-                + " ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit;
-        LOG.info("listOpenAuctions: sql=" + sql);
-        return auctions.queryItems(sql, new CosmosQueryRequestOptions(), AuctionDAO.class);
+        FindIterable<Document> it = auctions
+                .find(Filters.and(
+                        Filters.or(
+                                Filters.ne("closed", true),
+                                Filters.exists("closed", false)
+                        ),
+                        Filters.gt("closeDate", now)
+                ))
+                .sort(Sorts.descending("closeDate", "_id"))
+                .skip(offset)
+                .limit(limit);
+        return toList(it, AuctionDAO.class);
     }
 
-    // return closed/past auctions: closed == true OR closeDate <= now
-    public CosmosPagedIterable<AuctionDAO> listClosedAuctions(int offset, int limit) {
+    // closed: closed == true OR closeDate <= now
+    public Iterable<AuctionDAO> listClosedAuctions(int offset, int limit) {
         init();
         long now = System.currentTimeMillis();
-        String sql = "SELECT * FROM c WHERE (c.closed = true) OR (c.closeDate <= " + now + ") ORDER BY c._ts DESC OFFSET " + offset + " LIMIT " + limit;
-        LOG.info("listClosedAuctions: sql=" + sql);
-        return auctions.queryItems(sql, new CosmosQueryRequestOptions(), AuctionDAO.class);
+        FindIterable<Document> it = auctions
+                .find(Filters.or(
+                        Filters.eq("closed", true),
+                        Filters.lte("closeDate", now)
+                ))
+                .sort(Sorts.descending("closeDate", "_id"))
+                .skip(offset)
+                .limit(limit);
+        return toList(it, AuctionDAO.class);
     }
 
     public AuctionDAO getAuction(String id) {
         init();
-        try {
-            LOG.info("getAuction: id=" + id + " (searching cross-partition)");
-            // avoid SqlParameterList (not present); use simple query string
-            String sql = "SELECT * FROM c WHERE c.id = '" + id + "'";
-            CosmosQueryRequestOptions opts = new CosmosQueryRequestOptions();
-            opts.setQueryMetricsEnabled(false);
-            CosmosPagedIterable<AuctionDAO> results = auctions.queryItems(sql, opts, AuctionDAO.class);
-            for (AuctionDAO a : results) {
-                LOG.info("getAuction: found auction id=" + a.getId() + " sellerId=" + a.getSellerId() + " _rid=" + a.get_rid());
-                return a;
-            }
-            LOG.info("getAuction: not found id=" + id);
-        } catch (Exception e) {
-            LOG.warning("getAuction: err=" + e.getMessage());
+        Document doc = auctions.find(Filters.eq("_id", id)).first();
+        if (doc == null) {
+            doc = auctions.find(Filters.eq("id", id)).first();
         }
-        return null;
+        return fromDoc(doc, AuctionDAO.class);
     }
 
     public void addBidToAuction(String auctionId, Bid bid) {
         init();
-        try {
-            LOG.info("addBidToAuction: searching auctionId=" + auctionId);
-
-            // Procurar o leilão
-            String sql = "SELECT * FROM c WHERE c.id = '" + auctionId + "'";
-            CosmosQueryRequestOptions opts = new CosmosQueryRequestOptions();
-            opts.setQueryMetricsEnabled(false);
-            CosmosPagedIterable<AuctionDAO> results = auctions.queryItems(sql, opts, AuctionDAO.class);
-
-            for (AuctionDAO auction : results) {
-                LOG.info("addBidToAuction: found auction id=" + auction.getId() +
-                        " sellerId=" + auction.getSellerId());
-
-                // Adicionar o novo bid
-                if (auction.getBids() == null)
-                    auction.setBids(new ArrayList<>());
-                auction.getBids().add(bid);
-
-                // Atualizar documento
-                auctions.upsertItem(auction);
-                LOG.info("addBidToAuction: bid added successfully for auctionId=" + auctionId);
-                return;
-            }
-
-            LOG.warning("addBidToAuction: auction not found id=" + auctionId);
-        } catch (Exception e) {
-            LOG.warning("addBidToAuction: err=" + e.getMessage());
+        Document doc = auctions.find(Filters.eq("_id", auctionId)).first();
+        if (doc == null) {
+            doc = auctions.find(Filters.eq("id", auctionId)).first();
         }
+        if (doc == null) {
+            LOG.warning("addBidToAuction: auction not found id=" + auctionId);
+            return;
+        }
+
+        AuctionDAO auction = fromDoc(doc, AuctionDAO.class);
+        List<Bid> bids = auction.getBids();
+        if (bids == null) bids = new ArrayList<>();
+        bids.add(bid);
+        auction.setBids(bids);
+
+        Document newDoc = toDoc(auction);
+        newDoc.put("_id", auctionId);
+        auctions.replaceOne(Filters.eq("_id", auctionId), newDoc, new ReplaceOptions().upsert(true));
     }
 
-    public CosmosPagedIterable<AuctionDAO> listExpiredAuctions() {
-		init();
-        return auctions.queryItems(
-                "SELECT * FROM c WHERE c.closed != true AND c.closeDate < " + System.currentTimeMillis(),
-                null, AuctionDAO.class);
-	}
-
-    public CosmosPagedIterable<AuctionDAO> searchAuctionForLegoSet(String legoSetId) {
+    // leilões expirados (para a função de fechar auctions, se usares)
+    public Iterable<AuctionDAO> listExpiredAuctions() {
         init();
-        return auctions.queryItems(
-                "SELECT * FROM c WHERE c.legoSetId = '" + legoSetId + "' AND c.closeDate > "
-                        + System.currentTimeMillis(),
-                null, AuctionDAO.class);
+        long now = System.currentTimeMillis();
+        FindIterable<Document> it = auctions.find(Filters.and(
+                Filters.lte("closeDate", now),
+                Filters.ne("closed", true)
+        ));
+        return toList(it, AuctionDAO.class);
     }
 
-    private long countItemsInPeriod(CosmosContainer container, int seconds) {
+    public Iterable<AuctionDAO> searchAuctionForLegoSet(String legoSetId) {
         init();
-        long timeBoundary = (System.currentTimeMillis() / 1000L) - seconds;
-        String query = "SELECT VALUE COUNT(1) FROM c WHERE c._ts > " + timeBoundary;
-        
-        CosmosPagedIterable<Long> result = container.queryItems(query, new CosmosQueryRequestOptions(), Long.class);
-        return result.iterator().hasNext() ? result.iterator().next() : 0;
+        long now = System.currentTimeMillis();
+        FindIterable<Document> it = auctions.find(Filters.and(
+                Filters.eq("legoSetId", legoSetId),
+                Filters.gt("closeDate", now)
+        ));
+        return toList(it, AuctionDAO.class);
     }
+
+    // ==================== Métricas (stubs – não usados pelos resources) ====================
 
     public long countNewUsersInLast3Minutes() {
-        return countItemsInPeriod(users, 3 * 60);
+        // se quiseres, podes implementar com createdAt; para o TP2, 0 chega
+        return 0;
     }
 
     public long countNewAuctionsInLast3Minutes() {
-        return countItemsInPeriod(auctions, 3 * 60);
+        return 0;
     }
 
     public long countNewBidsInLast3Minutes() {
-        init();
-        long timeBoundary = System.currentTimeMillis() - (3 * 60 * 1000);
-        String query = "SELECT * FROM c WHERE c._ts > " + ((System.currentTimeMillis() / 1000L) - (3*60));
-        
-        AtomicInteger bidCount = new AtomicInteger(0);
-        auctions.queryItems(query, new CosmosQueryRequestOptions(), AuctionDAO.class)
-                .forEach(auction -> {
-                    if (auction.getBids() != null) {
-                        auction.getBids().forEach(bid -> {
-                            if (bid.getTimestamp() > timeBoundary) {
-                                bidCount.incrementAndGet();
-                            }
-                        });
-                    }
-                });
-        return bidCount.get();
+        return 0;
     }
-    
+
     public int deleteExpiredSessions() {
-    init();
-    long now = System.currentTimeMillis();
-    String query = "SELECT * FROM c WHERE c.expiration < " + now;
-    
-    AtomicInteger deletedCount = new AtomicInteger(0);
-    CosmosPagedIterable<Session> expired = sessions.queryItems(query, new CosmosQueryRequestOptions(), Session.class);
-
-    expired.forEach(session -> {
-        try {
-            // Corrigido para usar getSid()
-            sessions.deleteItem(session.getSid(), new PartitionKey(session.getSid()), new CosmosItemRequestOptions());
-            deletedCount.incrementAndGet();
-        } catch (Exception e) {
-            // Corrigido para usar getSid()
-            LOG.warning("Falha ao apagar sessão expirada: " + session.getSid() + " - Erro: " + e.getMessage());
-        }
-    });
-    
-    return deletedCount.get();
-}
-
+        // se vieres a usar sessões em Mongo, implementas aqui
+        return 0;
+    }
 
     public void close() {
-        client.close();
+        if (client != null) {
+            client.close();
+        }
     }
+
+    // ==================== Lego descriptions ====================
 
     public void upsertLegoDescription(String legoSetId, String description, String[] tags) {
         init();
-        try {
-            Map<String,Object> doc = new HashMap<>();
-            // use legoSetId as id to ensure one description per lego set
-            doc.put("id", legoSetId);
-            doc.put("legoSetId", legoSetId);
-            doc.put("description", description);
-            doc.put("tags", tags);
-            doc.put("updatedAt", System.currentTimeMillis());
-            CosmosItemResponse<Object> resp = legoDescriptions.upsertItem(doc);
-            LOG.info("upsertLegoDescription: upserted lego_descriptions id=" + legoSetId + " status=" + resp.getStatusCode());
-        } catch (Exception e) {
-            LOG.warning("upsertLegoDescription: err=" + e.getMessage());
-        }
+        if (legoDescriptions == null) return;
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("_id", legoSetId);
+        map.put("legoSetId", legoSetId);
+        map.put("description", description);
+        map.put("tags", tags != null ? Arrays.asList(tags) : Collections.emptyList());
+
+        Document doc = new Document(map);
+        legoDescriptions.replaceOne(
+                Filters.eq("_id", legoSetId),
+                doc,
+                new ReplaceOptions().upsert(true)
+        );
     }
 
-    // retorna o documento em lego_descriptions ou null
     @SuppressWarnings("unchecked")
-    public Map<String,Object> getLegoDescription(String legoSetId) {
+    public Map<String, Object> getLegoDescription(String legoSetId) {
         init();
-        if (legoDescriptions == null) {
-            LOG.warning("getLegoDescription: legoDescriptions container is null");
-            return null;
+        if (legoDescriptions == null) return null;
+
+        Document doc = legoDescriptions.find(Filters.eq("_id", legoSetId)).first();
+        if (doc == null) {
+            doc = legoDescriptions.find(Filters.eq("legoSetId", legoSetId)).first();
         }
-        try {
-            LOG.info("getLegoDescription: reading id=" + legoSetId + " partition=/legoSetId");
-            CosmosItemResponse<Map> resp = legoDescriptions.readItem(legoSetId, new PartitionKey(legoSetId), Map.class);
-            LOG.info("getLegoDescription: read status=" + resp.getStatusCode());
-            return resp.getItem();
-        } catch (Exception e) {
-            LOG.info("getLegoDescription: direct read failed for id=" + legoSetId + " err=" + e.getMessage());
-            // fallback a query
-            try {
-                String sql = "SELECT * FROM c WHERE c.id = '" + legoSetId + "'";
-                CosmosQueryRequestOptions opts = new CosmosQueryRequestOptions();
-                CosmosPagedIterable<Map> results = legoDescriptions.queryItems(sql, opts, Map.class);
-                if (results.iterator().hasNext()) {
-                    LOG.info("getLegoDescription: query fallback found item");
-                    return results.iterator().next();
-                } else {
-                    LOG.info("getLegoDescription: query fallback found nothing");
-                }
-            } catch (Exception ex) {
-                LOG.warning("getLegoDescription: query fallback failed for id=" + legoSetId + " err=" + ex.getMessage());
-            }
-        }
-        return null;
+        if (doc == null) return null;
+
+        Map<String, Object> map = new HashMap<>(doc);
+        map.remove("_id");
+        return map;
     }
 }

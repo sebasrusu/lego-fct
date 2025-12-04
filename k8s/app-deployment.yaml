@@ -21,6 +21,13 @@ spec:
           env:
             - name: MEDIA_PATH
               value: /media
+            - name: DB_URL
+              value: mongodb://admin:senhaSegura123@mongodb-service:27017/ccdb?authSource=admin
+            - name: DB_NAME
+              value: ccdb
+            # se quiser desligar Cosmos de vez:
+            - name: DB_KEY
+              value: ""    #não necessário Mongo
           volumeMounts:
             - name: media-volume
               mountPath: /media

@@ -6,10 +6,9 @@ import cc.data.lego.LegoSet;
 import cc.data.lego.LegoSetDAO;
 import cc.data.user.UserDAO;
 import cc.db.CosmosDBLayer;
-import cc.db.RedisLayer; 
+import cc.db.RedisLayer;
 import com.azure.cosmos.CosmosException;
 import java.net.URI;
-import java.util.ArrayList; 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -97,7 +96,7 @@ public class LegoSetResource {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public List<LegoSet> listLegoSets(@QueryParam("userId") String userId, @QueryParam("recent") String recent, @QueryParam("st") @DefaultValue("0") int st, @QueryParam("len") @DefaultValue("20") int len) {
-        
+
         // Caminho 1: Por User (Sem cache neste exemplo)
         if (userId != null && !userId.isEmpty()) {
             LOG.info("A processar listLegoSets para userId: " + userId);
@@ -123,7 +122,7 @@ public class LegoSetResource {
         } catch (Exception e) {
              LOG.log(Level.WARNING, "Falha ao LER legosets:list do Redis", e);
         }
-       
+
         if (cachedSets != null && !cachedSets.isEmpty()) {
             LOG.info("Cache HIT para legosets:list");
             return cachedSets;
@@ -139,7 +138,7 @@ public class LegoSetResource {
             LOG.log(Level.SEVERE, "Falha ao consultar/mapear legosets da Cosmos DB", e);
             legoSets = Collections.emptyList();
         }
-        
+
         // 3. Guardar na cache
         try {
             LOG.info("A guardar legosets:list na cache.");
