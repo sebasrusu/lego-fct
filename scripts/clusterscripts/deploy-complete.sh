@@ -63,11 +63,17 @@ echo "Tag and Push to Azure ACR"
 docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG"
 
 echo ""
-echo "Creating secret"
-kubectl create secret generic azure-secrets --from-env-file="$ROOT_DIR/.env" 2>/dev/null || echo "  (Secret já existe)"
+echo "Creating secret (lego-app-secrets)"
+# Atualiza o segredo se já existir (--dry-run e apply)
+kubectl create secret generic lego-app-secrets --from-env-file="$ROOT_DIR/.env" --dry-run=client -o yaml | kubectl apply -f -
 
 echo ""
-echo "Aplicar PVC + Deployment + Service"
+echo "Aplicar Redis + PVC + Deployment + Service"
+# Aplica Redis primeiro
+kubectl apply -f "$ROOT_DIR/k8s/redis-deployment.yaml"
+kubectl apply -f "$ROOT_DIR/k8s/redis-service.yaml"
+
+# Aplica o resto
 kubectl apply -f "$ROOT_DIR/k8s/pvc-media.yaml"
 kubectl apply -f "$ROOT_DIR/k8s/app-deployment.yaml"
 kubectl apply -f "$ROOT_DIR/k8s/app-service.yaml"
