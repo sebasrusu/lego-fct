@@ -302,9 +302,14 @@ deploy_kubernetes() {
     kubectl apply -f "$K8S_DIR/mongodb.yaml" -n "$K8S_NAMESPACE"
   }
   
-  [ -f "$K8S_DIR/redis.yaml" ] && {
+  [ -f "$K8S_DIR/redis-deployment.yaml" ] && {
     echo "  + Redis..."
-    kubectl apply -f "$K8S_DIR/redis.yaml" -n "$K8S_NAMESPACE"
+    kubectl apply -f "$K8S_DIR/redis-deployment.yaml" -n "$K8S_NAMESPACE"
+  }
+
+  [ -f "$K8S_DIR/redis-service.yaml" ] && {
+    echo "  + Redis Service..."
+    kubectl apply -f "$K8S_DIR/redis-service.yaml" -n "$K8S_NAMESPACE"
   }
   
   [ -f "$K8S_DIR/app-deployment.yaml" ] && {

@@ -1,93 +1,85 @@
 #!/bin/bash
 
+# Para o script se houver qualquer erro
 set -e
 
-# Configurações
+# --- Configurações ---
 RESOURCE_GROUP="cc2526"
 CLUSTER_NAME="lego-aks-cluster"
-DEPLOYMENT_NAME="legoapp" 
+DEPLOYMENT_NAME="legoapp"
 
-# Caminhos
+# --- Caminhos ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 
+# --- Funções ---
+
 # Função para iniciar o cluster
 function start_cluster() {
     echo ""
-    echo "🚀 Raising o cluster AKS..."
+    echo " A iniciar o cluster AKS ($CLUSTER_NAME)..."
+
+    # Inicia o cluster. O '|| true' impede que o script pare se o cluster já estiver a correr
     az aks start \
       --resource-group "$RESOURCE_GROUP" \
-      --name "$CLUSTER_NAME"
+      --name "$CLUSTER_NAME" || echo "Cluster pode já estar a correr."
 
-    # Envia o .env para o cluster assim que ele liga
-    echo "🔄 Sending .env to cluster secrets..."
+    # CRITICO: Garante que o kubectl está a apontar para este cluster
+    echo "A obter credenciais do cluster..."
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing
+
+    # Envia o .env para o cluster
+    echo " A enviar .env para os secrets..."
     if [ -f "$ENV_FILE" ]; then
+        # Apaga o secret se existir para recriar limpo (opcional, mas evita erros de merge) ou usa o dry-run apply
         kubectl create secret generic lego-app-secrets \
             --from-env-file="$ENV_FILE" \
             --dry-run=client -o yaml | kubectl apply -f -
-        echo "✅ Secrets synced."
+        echo "Secrets sincronizados."
     else
-        echo "⚠️ Warning: .env not found at $ENV_FILE"
+        echo " Aviso: .env não encontrado em $ENV_FILE"
     fi
 
-    echo "Getting up..."
+    echo " Estado dos nós:"
     kubectl get nodes
-    echo "✅ Cluster launched with success"
+    echo " Cluster lançado com sucesso."
 }
 
 # Função para atualizar .env e reiniciar (Hot Reload)
 function update_env_restart() {
     echo ""
-    echo "🔄 Updating Secrets from .env..."
-    
+    echo " A atualizar Secrets a partir do .env..."
+
+    # Garante contexto antes de tentar update (caso tenhas mudado de terminal)
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing
+
     if [ -f "$ENV_FILE" ]; then
         # 1. Atualiza o segredo no Kubernetes
         kubectl create secret generic lego-app-secrets \
             --from-env-file="$ENV_FILE" \
             --dry-run=client -o yaml | kubectl apply -f -
-        
-        echo "✅ Secrets updated."
-        echo "🔄 Restarting deployment ($DEPLOYMENT_NAME) to apply changes..."
-        
+
+        echo " Secrets atualizados."
+        echo "A reiniciar deployment ($DEPLOYMENT_NAME) para aplicar alterações..."
+
         # 2. Reinicia o deployment para ler as novas variáveis
         kubectl rollout restart deployment "$DEPLOYMENT_NAME"
-        
-        echo "⏳ Waiting for rollout..."
+
+        echo " A aguardar pelo rollout..."
         kubectl rollout status deployment/"$DEPLOYMENT_NAME"
-        
-        echo "✅ Update complete!"
+
+        echo " Atualização completa!"
     else
-        echo "❌ Error: .env file not found at $ENV_FILE"
+        echo " Erro: ficheiro .env não encontrado em $ENV_FILE"
     fi
 }
 
-# Menu Principal
-while true; do
-    echo ""
-    echo "=========================================="
-    echo " 🧱 LEGO CLUSTER MANAGER"
-    echo "=========================================="
-    echo "1) Start Cluster (Ligar + Enviar .env)"
-    echo "2) Update .env & Restart Pods (Hot Reload)"
-    echo "3) Exit"
-    echo "=========================================="
-    read -p "Select an option [1-3]: " choice
+# --- Execução Principal ---
 
-    case $choice in
-        1)
-            start_cluster
-            ;;
-        2)
-            update_env_restart
-            ;;
-        3)
-            echo "Exiting..."
-            exit 0
-            ;;
-        *)
-            # CORREÇÃO AQUI: Fechei as aspas e removi o caractere inválido
-            echo "Invalid option. Please select 1, 2 or 3."
-            ;;
-    esac
-done
+# Verifica se o argumento é "update"
+if [ "$1" == "update" ]; then
+    update_env_restart
+else
+    start_cluster
+fi

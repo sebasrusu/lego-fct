@@ -1,5 +1,5 @@
 config:
-  target: 'https://cc2526.azurewebsites.net'
+  target: 'http://9.235.138.69'
   http:
     timeout: 1000
   plugins:
@@ -46,7 +46,7 @@ scenarios:
             json:
               user: "{{ uId }}"
               pwd: "{{ uPwd }}"
-        count: 200
+        count: 100
       - loop:
         - post:
             url: "/rest/media"
@@ -170,4 +170,4 @@ scenarios:
                   timestamp: "{{ timestamp }}"
             whileTrue: "randomLoop90"
           whileTrue: "randomLoop70"
-        count: 500
+        count: 300
