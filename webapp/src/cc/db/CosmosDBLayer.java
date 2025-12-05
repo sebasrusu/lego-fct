@@ -26,9 +26,8 @@ public class CosmosDBLayer {
     // singleton instance
     private static CosmosDBLayer instance;
 
-    // mantemos estes nomes para reutilizar as envs DB_URL e DB_NAME
     private static final String CONNECTION_URL;
-    private static final String DB_KEY; // já não é usado, mas mantemos para compatibilidade
+    private static final String DB_KEY; // já não é usado
     private static final String DB_NAME;
 
     static {
@@ -360,7 +359,7 @@ public class CosmosDBLayer {
         return toList(it, AuctionDAO.class);
     }
 
-    // open: closed != true AND closeDate > now
+
     public Iterable<AuctionDAO> listOpenAuctions(int offset, int limit) {
         init();
         long now = System.currentTimeMillis();
@@ -378,7 +377,7 @@ public class CosmosDBLayer {
         return toList(it, AuctionDAO.class);
     }
 
-    // closed: closed == true OR closeDate <= now
+
     public Iterable<AuctionDAO> listClosedAuctions(int offset, int limit) {
         init();
         long now = System.currentTimeMillis();
@@ -424,7 +423,7 @@ public class CosmosDBLayer {
         auctions.replaceOne(Filters.eq("_id", auctionId), newDoc, new ReplaceOptions().upsert(true));
     }
 
-    // leilões expirados (para a função de fechar auctions, se usares)
+    // leilões expirados (para a função de fechar auctions, quando usado)
     public Iterable<AuctionDAO> listExpiredAuctions() {
         init();
         long now = System.currentTimeMillis();
